@@ -3,9 +3,9 @@
 
 const int SPI_CS_PIN = 17;
 const int INT_PIN = 16;
-const int LED_PIN = LED_BUILTIN; // or e.g. 13
 MCP_CAN CAN(SPI_CS_PIN);
 
+const int LED_PIN = LED_BUILTIN; // or e.g. 13
 unsigned long ledOffTime = 0;
 bool ledOn = false;
 
