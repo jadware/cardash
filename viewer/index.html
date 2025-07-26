@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>CAN Log Viewer</title>
+	<link href="bootstrap.min.css" rel="stylesheet">
+	<style>
+		body { font-family: monospace; }
+		#scrollArea {
+			height: 80vh;
+			overflow-y: auto;
+			border: 1px solid #dee2e6;
+			margin-top: 1rem;
+		}
+		tr td {
+			white-space: pre;
+		}
+	</style>
+</head>
+<body class="bg-light">
+
+	<div class="container py-4">
+		<h2 class="mb-4">CAN Log Viewer</h2>
+
+		<div class="row g-3">
+			<div class="col-md-6">
+				<label class="form-label">
+					DBC <span id="dbcStatus" class="badge bg-secondary">Not Loaded</span>
+				</label>
+				<button class="btn btn-outline-primary" onclick="triggerDBCLoad()">Load</button>
+				<button class="btn btn-outline-danger" onclick="clearDBC()">Clear</button>
+				<input type="file" id="dbcFile" accept=".dbc" style="display: none;">
+			</div>
+
+			<div class="col-md-6">
+				<label class="form-label">
+					candump log<span id="candumpStatus" class="badge bg-secondary">Not Loaded</span>
+				</label>
+				<button class="btn btn-outline-primary" onclick="triggerCandumpLoad()">Load</button>
+				<button class="btn btn-outline-danger" onclick="clearCandump()">Clear</button>
+				<input type="file" id="logFile" accept=".log,.txt" style="display: none;">
+			</div>
+		</div>
+
+		<div id="scrollArea" class="mt-4">
+			<table class="table table-sm table-striped mb-0">
+				<tbody id="contentArea"></tbody>
+			</table>
+		</div>
+	</div>
+
+	<script src="bootstrap.bundle.min.js"></script>
+	<script src="clusterize.min.js"></script>
+	<script src="index.js"></script>
+</body>
+</html>
