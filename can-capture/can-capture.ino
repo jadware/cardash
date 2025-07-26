@@ -34,30 +34,27 @@ void loop()
 		float ts = millis() / 1000.0;
 
 		// choose one:
-		//logCandump(ts, id, extended, rtr, len);
-		logASC(ts, id, extended, rtr, len);
+		logCandump(ts, id, extended, rtr, len);
+		//logASC(ts, id, extended, rtr, len);
 	}
 }
 
 void logCandump(float ts, unsigned long id, bool extended, bool rtr, uint8_t len)
 {
-	Serial.printf("(%.6f) can0  ", ts);
+	Serial.printf("(%.6f) vcan0 ", ts);
 
 	if (extended)
 	{
-		if (id < 0x10000000) Serial.print(" ");
-		Serial.print(id, HEX);
+		Serial.print(id, HEX); // will be up to 8 digits
 	}
 	else
 	{
-		if (id < 0x100) Serial.print("  ");
-		else if (id < 0x1000) Serial.print(" ");
-		Serial.print(id, HEX);
+		if (id < 0x100) Serial.print("0"); // pad to 3 digits
+		if (id < 0x10) Serial.print("0");
+		Serial.print(id, HEX); // will be 3 digits
 	}
 
-	Serial.print("   [");
-	Serial.print(len);
-	Serial.print("] ");
+	Serial.print("#");
 
 	if (!rtr)
 	{
@@ -66,7 +63,6 @@ void logCandump(float ts, unsigned long id, bool extended, bool rtr, uint8_t len
 			uint8_t b = mcp.read();
 			if (b < 0x10) Serial.print("0");
 			Serial.print(b, HEX);
-			if (i < len - 1) Serial.print(" ");
 		}
 	}
 
