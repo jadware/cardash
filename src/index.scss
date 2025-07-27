@@ -1,0 +1,165 @@
+body
+{
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.logs-container
+{
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+}
+
+.logs-header
+{
+    flex-shrink: 0;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    margin: 0;
+}
+
+.logs-table-container
+{
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    margin: 0;
+    padding: 0;
+}
+
+.logs-table
+{
+    height: 100%;
+    margin: 0;
+    table-layout: fixed;
+    width: 100%;
+    
+    thead {
+        position: sticky;
+        top: 0;
+        background-color: #212529;
+        z-index: 10;
+        text-transform: uppercase;
+    }
+    
+    tbody {
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        display: block;
+    }
+    
+    thead tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+    }
+    
+    tbody tr {
+        display: table;
+        width: 100%;
+        table-layout: fixed;
+        
+        &.table-warning {
+            background-color: rgba(255, 193, 7, 0.1) !important;
+            
+            &:hover {
+                background-color: rgba(255, 193, 7, 0.2) !important;
+            }
+        }
+        
+        &.table-danger {
+            background-color: rgba(220, 53, 69, 0.1) !important;
+            
+            &:hover {
+                background-color: rgba(220, 53, 69, 0.2) !important;
+            }
+        }
+    }
+    
+    // Column width distribution - applied to both header and body
+    th:nth-child(1), td:nth-child(1) { // Type
+        width: 8em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+		font-size: 90%;
+    }
+    
+    th:nth-child(2), td:nth-child(2) { // Time
+        width: 4em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    th:nth-child(3), td:nth-child(3) { // Room
+        width: auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.log-entry {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.log-timestamp {
+    color: #6c757d;
+    font-weight: bold;
+}
+
+.log-room {
+    color: #6c757d;
+    font-weight: 500;
+}
+
+.log-type {
+    font-weight: bold;
+    
+    &.i {
+        color: #0d6efd;
+    }
+    
+    &.w {
+        color: #ffc107;
+    }
+    
+    &.e {
+        color: #dc3545;
+    }
+}
+
+.log-message {
+    word-break: break-all;
+    white-space: pre-wrap;
+}
+
+.filter-controls {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 0;
+}
+
+.filter-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin: 0;
+}
+
+.log-count {
+    font-weight: bold;
+    color: #0d6efd;
+    margin: 0;
+}
