@@ -83,22 +83,32 @@ body
     }
     
     // Column width distribution - applied to both header and body
-    th:nth-child(1), td:nth-child(1) { // Type
+    th:nth-child(1), td:nth-child(1)
+	{
         width: 8em;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-		font-size: 90%;
     }
     
-    th:nth-child(2), td:nth-child(2) { // Time
-        width: 4em;
+    th:nth-child(2), td:nth-child(2)
+	{
+        width: 3em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+	
+	th:nth-child(3), td:nth-child(3)
+	{
+        width: 3em;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
     }
     
-    th:nth-child(3), td:nth-child(3) { // Room
+    th:nth-child(4), td:nth-child(4)
+	{
         width: auto;
         white-space: nowrap;
         overflow: hidden;
