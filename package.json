@@ -1,0 +1,24 @@
+{
+	"name": "cardash",
+	"version": "0.0.1",
+	"author": "Jad Meouchy",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/jadware/cardash.git"
+	},
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"dependencies": {
+		"bootstrap": "^5.3.3",
+		"bootstrap-icons": "^1.11.1",
+		"vite": "^7.0.4"
+	},
+	"devDependencies": {
+		"sass": "^1.89.2",
+		"vite-plugin-singlefile": "^2.3.0"
+	}
+}

@@ -53,7 +53,12 @@ A browser-based tool for visualizing and decoding candump-format CAN bus logs us
 
 ## 🧱 Tech Stack
 
-- HTML + Bootstrap 5  
-- Vanilla JS  
-- Clusterize.js for virtual scrolling  
+- HTML + Bootstrap
+- Vanilla JS
+- Clusterize.js for virtual scrolling
 - Web Serial API
+
+## Purpose
+- knob temperature control and fan control
+- blind spot monitoring LED's that auto-adjust to day/night
+- 
