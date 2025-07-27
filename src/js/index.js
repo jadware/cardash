@@ -36,6 +36,11 @@ window.addEventListener('DOMContentLoaded', () =>
 		loadLog(logText);
 		setStatus(candumpStatus, 'Restored');
 	}
+	
+	document.getElementById('text-filter').addEventListener('input', () =>
+	{
+		loadLog(localStorage.getItem('logText') || '');
+	});
 
 	document.getElementById('dbc-load').onclick = triggerDBCLoad;
 	document.getElementById('log-load').onclick = triggerCandumpLoad;
@@ -99,6 +104,7 @@ function loadLog(text)
 	const allowedTransmitters = new Set(getEnabledTransmitters());
 	const lines = text.split('\n');
 	const rows = [];
+	const filterText = document.getElementById('text-filter').value.trim().toLowerCase();
 
 	for (let line of lines)
 	{
@@ -114,6 +120,10 @@ function loadLog(text)
 
 		if (row.transmitter && !allowedTransmitters.has(row.transmitter))
 			continue;
+		
+		const fullText = `${row.idHex} ${row.msg || ''}`.toLowerCase();
+			if (filterText && !fullText.includes(filterText))
+				continue;
 
 		rows.push(`
 			<tr>
