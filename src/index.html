@@ -69,6 +69,7 @@
 								<th scope="col" class="text-end">Timestamp</th>
 								<th scope="col" class="text-center">ID</th>
 								<th scope="col" class="text-center">Len</th>
+								<th scope="col">Category</th>
 								<th scope="col">Message</th>
 							</tr>
 						</thead>
@@ -79,7 +80,7 @@
 					</table>
 				</div>
 
-				<div class="pt-2 d-flex flex-column" style="min-width: 24em;">
+				<div class="pt-2 d-flex flex-column scrollable-sidebar">
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" id="toggle-unknown">
 						<label class="form-check-label" for="toggle-unknown">Show Unknown</label>
@@ -89,8 +90,12 @@
 						<h6 class="mb-1">Transmitters</h6>
 						<ul id="transmitter-list" class="list-unstyled small mb-0"></ul>
 					</div>
+					
+					<div class="mt-3">
+						<h6 class="mb-1">ID Counts</h6>
+						<div id="id-count-buttons" class="d-flex flex-wrap gap-1 small"></div>
+					</div>
 				</div>
-
 			</div>
 		</div>
 

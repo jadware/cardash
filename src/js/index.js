@@ -2,9 +2,9 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import '../index.scss';
-import Clusterize from './clusterize.js';
 import { DBC } from './dbc.js';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'; 
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { createGrid } from 'ag-grid-community';
 
 // Register all Community features
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -13,10 +13,14 @@ const dbcStatus = document.getElementById('dbcStatus');
 const candumpStatus = document.getElementById('candumpStatus');
 const logTable = document.getElementById('logs-tbody');
 
+let disabledIds = new Set();
 let dbc = null;
+
 
 window.addEventListener('DOMContentLoaded', () =>
 {
+	disabledIds = getDisabledIds();
+	
 	const showUnknown = localStorage.getItem('showUnknown') !== 'false';
 	document.getElementById('toggle-unknown').checked = showUnknown;
 
@@ -109,6 +113,7 @@ function loadLog(text)
 	const lines = text.split('\n');
 	const rows = [];
 	const filterText = document.getElementById('text-filter').value.trim().toLowerCase();
+	const idCountMap = new Map(); // New lookup table
 
 	for (let line of lines)
 	{
@@ -119,27 +124,75 @@ function loadLog(text)
 		if (!row.id)
 			continue;
 
+		// Count ID regardless of filters
+		const idStr = row.id.toString(16).toUpperCase().padStart(3, '0');
+		idCountMap.set(idStr, (idCountMap.get(idStr) || 0) + 1);
+
+		// Apply display filters
 		if (!row.msg && !showUnknown)
+			continue;
+		
+		if (disabledIds.has(idStr))
 			continue;
 
 		if (row.transmitter && !allowedTransmitters.has(row.transmitter))
 			continue;
-		
+
 		const fullText = `${row.idHex} ${row.msg || ''}`.toLowerCase();
-			if (filterText && !fullText.includes(filterText))
-				continue;
+		if (filterText && !fullText.includes(filterText))
+			continue;
 
 		rows.push(`
 			<tr>
 				<td class="text-end opacity-50">${row.time.toFixed(3)}</td>
-				<td class="text-center">${row.id.toString(16).toUpperCase().padStart(3, '0')}</td>
+				<td class="text-center">${idStr}</td>
 				<td class="text-center">${row.length}</td>
+				<td></td>
 				<td>${row.msg || ''}</td>
 			</tr>`);
 	}
 
 	logTable.innerHTML = rows.join('');
+	updateIdCountTable(idCountMap); // Update table UI
 }
+
+function updateIdCountTable(map)
+{
+	const container = document.getElementById('id-count-buttons');
+	container.innerHTML = '';
+
+	const entries = [...map.entries()].sort((a, b) => b[1] - a[1]);
+
+	for (const [id, count] of entries)
+	{
+		const label = document.createElement('label');
+		label.className = 'btn btn-outline-secondary btn-sm';
+		label.innerText = `${id} (${count})`;
+
+		const input = document.createElement('input');
+		input.type = 'checkbox';
+		input.className = 'btn-check';
+		input.id = `id-toggle-${id}`;
+		input.checked = !disabledIds.has(id);
+
+		label.setAttribute('for', input.id);
+
+		input.addEventListener('change', () =>
+		{
+			if (input.checked)
+				disabledIds.delete(id);
+			else
+				disabledIds.add(id);
+
+			setDisabledIds(disabledIds);
+			loadLog(localStorage.getItem('logText') || '');
+		});
+
+		container.appendChild(input);
+		container.appendChild(label);
+	}
+}
+
 
 function decodeCandumpLine(rawLine)
 {
@@ -224,4 +277,14 @@ function populateTransmitterList()
 	}
 
 	setEnabledTransmitters([...enabled]);
+}
+
+function getDisabledIds()
+{
+	return new Set(JSON.parse(localStorage.getItem('disabledIds') || '[]'));
+}
+
+function setDisabledIds(set)
+{
+	localStorage.setItem('disabledIds', JSON.stringify([...set]));
 }

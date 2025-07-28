@@ -109,6 +109,15 @@ body
     
     th:nth-child(4), td:nth-child(4)
 	{
+        width: 10em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+		text-align: center;
+    }
+	
+	th:nth-child(5), td:nth-child(5)
+	{
         width: auto;
         white-space: nowrap;
         overflow: hidden;
@@ -172,4 +181,23 @@ body
     font-weight: bold;
     color: #0d6efd;
     margin: 0;
+}
+
+.scrollable-sidebar
+{
+	max-height: 100vh;
+	overflow-y: auto;
+	width: 24em;
+	flex-shrink: 0;
+}
+
+#id-count-buttons
+{
+	max-width: 100%;
+}
+
+#id-count-buttons .btn
+{
+	font-size: 80%;
+	white-space: nowrap;
 }
