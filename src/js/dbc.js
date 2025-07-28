@@ -4,6 +4,8 @@ export class DBC
 	{
 		this.messages = new Map(); // id → { id, name, dlc, signals[] }
 		this.transmitters = new Set(); // node names
+		this.signalComments = new Map(); // key: "msgId.signalName" → comment
+		this.valueTables = new Map(); // key: "msgId.signalName" → { value: label }
 	}
 
 	static parse(text)
@@ -64,6 +66,30 @@ export class DBC
 					raw: line
 				});
 			}
+			else if (line.startsWith('CM_ SG_'))
+			{
+				const match = line.match(/^CM_ SG_ (\d+)\s+(\w+)\s+"([^"]+)"/);
+				if (match)
+				{
+					const [, msgId, sigName, comment] = match;
+					dbc.signalComments.set(`${msgId}.${sigName}`, comment);
+				}
+			}
+			else if (line.startsWith('VAL_'))
+			{
+				const match = line.match(/^VAL_\s+(\d+)\s+(\w+)\s+(.*)\s*;/);
+				if (match)
+				{
+					const [, msgId, sigName, rest] = match;
+					const key = `${msgId}.${sigName}`;
+					const map = {};
+					const regex = /(\d+)\s+"([^"]+)"/g;
+					let m;
+					while ((m = regex.exec(rest)))
+						map[parseInt(m[1], 10)] = m[2];
+					dbc.valueTables.set(key, map);
+				}
+			}
 		}
 
 		return dbc;
@@ -79,7 +105,6 @@ export class DBC
 		return Array.from(this.transmitters);
 	}
 	
-	/** Decode a CAN payload for a known CAN ID */
 	decodeFrame(id, bytes)
 	{
 		const msg = this.messages.get(id);
@@ -91,14 +116,37 @@ export class DBC
 		{
 			const rawVal = extractSignalBits(bytes, sig.startBit, sig.length, sig.byteOrder === 1);
 			const val = sig.isSigned ? toSigned(rawVal, sig.length) : rawVal;
-			result[sig.name] = val * sig.factor + sig.offset;
+			const value = val * sig.factor + sig.offset;
+
+			const key = `${id}.${sig.name}`;
+			const comment = this.signalComments.get(key);
+			const valMap = this.valueTables.get(key);
+
+			if (valMap?.hasOwnProperty(val))
+			{
+				result[sig.name] = {
+					value,
+					label: valMap[val],
+					comment
+				};
+			}
+			else if (comment)
+			{
+				result[sig.name] = {
+					value,
+					comment
+				};
+			}
+			else
+			{
+				result[sig.name] = value;
+			}
 		}
 
 		return result;
 	}
 }
 
-// extract unsigned int from bitfield
 function extractSignalBits(bytes, startBit, length, littleEndian)
 {
 	let value = 0;
@@ -121,7 +169,6 @@ function extractSignalBits(bytes, startBit, length, littleEndian)
 	return value >>> 0;
 }
 
-// convert unsigned to signed based on bit width
 function toSigned(value, bits)
 {
 	const shift = 32 - bits;

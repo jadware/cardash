@@ -21,6 +21,10 @@ window.addEventListener('DOMContentLoaded', () =>
 {
 	disabledIds = getDisabledIds();
 	
+	// Restore text filter from localStorage
+	const savedFilter = localStorage.getItem('textFilter') || '';
+	document.getElementById('text-filter').value = savedFilter;
+	
 	const showUnknown = localStorage.getItem('showUnknown') !== 'false';
 	document.getElementById('toggle-unknown').checked = showUnknown;
 
@@ -45,8 +49,9 @@ window.addEventListener('DOMContentLoaded', () =>
 		setStatus(candumpStatus, 'Restored');
 	}
 	
-	document.getElementById('text-filter').addEventListener('input', () =>
+	document.getElementById('text-filter').addEventListener('input', (e) =>
 	{
+		localStorage.setItem('textFilter', e.target.value);
 		loadLog(localStorage.getItem('logText') || '');
 	});
 
@@ -141,6 +146,35 @@ function loadLog(text)
 		const fullText = `${row.idHex} ${row.msg || ''}`.toLowerCase();
 		if (filterText && !fullText.includes(filterText))
 			continue;
+		
+		let decodedHtml = '';
+		if (row.decoded) {
+			const entries = Object.entries(row.decoded);
+
+			if (entries.length) {
+				decodedHtml = `
+					<details>
+						<summary>${row.msg || ''}</summary>
+						<ul class="mb-0">
+							${entries.map(([k, v]) => {
+								let val = v;
+								let label = k;
+
+								if (typeof v === 'object' && v !== null && 'value' in v) {
+									val = v.value;
+									label = v.comment || dbc?.signalComments.get(`${row.id}.${k}`) || k;
+								} else {
+									label = dbc?.signalComments.get(`${row.id}.${k}`) || k;
+								}
+
+								return `<li>${label}: ${val}</li>`;
+							}).join('')}
+						</ul>
+					</details>`;
+			} else {
+				decodedHtml = row.msg || '';
+			}
+		}
 
 		rows.push(`
 			<tr>
@@ -148,7 +182,7 @@ function loadLog(text)
 				<td class="text-center">${idStr}</td>
 				<td class="text-center">${row.length}</td>
 				<td></td>
-				<td>${row.msg || ''}</td>
+				<td>${decodedHtml}</td>
 			</tr>`);
 	}
 
@@ -167,7 +201,11 @@ function updateIdCountTable(map)
 	{
 		const label = document.createElement('label');
 		label.className = 'btn btn-outline-secondary btn-sm';
-		label.innerText = `${id} (${count})`;
+		
+		const numericId = parseInt(id, 16);
+		const name = dbc?.getMessageById(numericId)?.name || id;
+		label.innerText = `${name} (${count})`;
+		label.title = `ID: ${id}`;
 
 		const input = document.createElement('input');
 		input.type = 'checkbox';
@@ -208,6 +246,8 @@ function decodeCandumpLine(rawLine)
 	const numericId = parseInt(id, 16);
 	const message = dbc?.getMessageById(numericId);
 
+	const decoded = dbc?.decodeFrame(numericId, bytes);
+
 	return {
 		time: parseFloat(time),
 		interface: iface,
@@ -217,7 +257,8 @@ function decodeCandumpLine(rawLine)
 		idHex: id.toUpperCase(),
 		data: bytes,
 		dataHex: bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()),
-		length: bytes.length
+		length: bytes.length,
+		decoded
 	};
 }
 
