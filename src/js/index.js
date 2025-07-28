@@ -62,6 +62,7 @@ function createTable()
 		[
 			{ field: 't', headerName: 'Time', width: 90 },
 			{ field: 'id', headerName: 'ID', width: 60 },
+			{ field: 'msg', headerName: 'Msg', width: 220 },
 			//{ field: 'length', headerName: 'Len', width: 60 },
 			{ field: 'decoded', headerName: 'Data', flex: 1, cellRenderer: decodedCellRenderer },
 		],
@@ -200,22 +201,39 @@ function decodeCandumpLine(rawLine)
 
 	let html = '';
 	const decoded = dbc?.decodeFrame(numericId, bytes);
+
 	if (decoded)
 	{
 		//check if any of the decoded keys have a value with a comment
-		let fields = [];
-		for (let key in decoded)
-		{
-			const value = decoded[key];
+		const fields = [];
 
-			//only add if it has a comment
-			if (value.comment)
-				fields.push(value);
+		for (const [key, val] of Object.entries(decoded))
+		{
+			if (typeof val === 'object')
+			{
+				const parts = [];
+
+				if ('comment' in val)
+					parts.push(val.comment);
+
+				if ('label' in val)
+					parts.push(val.label);
+				else
+					parts.push(val.value);
+
+				if ('unit' in val)
+					parts.push(val.unit);
+
+				fields.push(`${key}: ${parts.join(' ')}`);
+			}
+			else
+			{
+				fields.push(`${key}: ${val}`);
+			}
 		}
 
-		//show comment and value for each of the fields
 		if (fields.length > 0)
-			html = fields.map(field => `${field.comment}: ${field.value}`).join(' | ');
+			html = fields.join(' | ');
 	}
 
 	return {
@@ -335,7 +353,7 @@ function selectRecord(row)
 		return;
 	}
 
-	console.log('select record', row.payload);
+	console.log('select record', row.decoded);
 }
 
 function setDbcStatus(enabled)
