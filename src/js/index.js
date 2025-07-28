@@ -3,118 +3,268 @@ import 'bootstrap';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import '../index.scss';
 import { DBC } from './dbc.js';
-import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
+import { saveByKey, loadByKey } from './persistent-storage.js';
 import { createGrid } from 'ag-grid-community';
-
-// Register all Community features
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const dbcStatus = document.getElementById('dbcStatus');
-const candumpStatus = document.getElementById('candumpStatus');
 const logTable = document.getElementById('logs-tbody');
+const toggleUnknown = document.getElementById('toggle-unknown');
+const textFilter = document.getElementById('text-filter');
 
-let disabledIds = new Set();
+const dbcLoad = document.getElementById('dbc-load');
+const dbcFile = document.getElementById('dbc-file');
+const dbcClear = document.getElementById('dbc-clear');
+
+const logLoad = document.getElementById('log-load');
+const logFile = document.getElementById('log-file');
+const logClear = document.getElementById('log-clear');
+
+const showUnknown = document.getElementById('toggle-unknown');
+
+let disabled_ids = new Set();
 let dbc = null;
+let grid = null;
+const allowed_transmitters = new Set();
+let all_log_lines = [];
 
 
-window.addEventListener('DOMContentLoaded', () =>
+window.addEventListener('DOMContentLoaded', async () =>
 {
-	disabledIds = getDisabledIds();
-	
-	// Restore text filter from localStorage
-	const savedFilter = localStorage.getItem('textFilter') || '';
-	document.getElementById('text-filter').value = savedFilter;
-	
-	const showUnknown = localStorage.getItem('showUnknown') !== 'false';
-	document.getElementById('toggle-unknown').checked = showUnknown;
+	createTable();
+	await restoreData();
+	restoreFilters();
 
-	document.getElementById('toggle-unknown').addEventListener('change', (e) =>
+	// Add drag and drop handlers
+	setupDragAndDrop();
+
+	toggleUnknown.onchange = onToggleUnknown;
+	textFilter.oninput = onTextFilterInput;
+	
+	dbcLoad.onclick = triggerDbcLoad;
+	dbcFile.onchange = onDbcFileChange;
+	dbcClear.onclick = clearDbc;
+
+	logLoad.onclick = triggerCandumpLoad;
+	logFile.onchange = onLogFileChange;
+	logClear.onclick = clearCandump;
+});
+
+function createTable()
+{
+	//setup ag-grid 
+	const gridOptions =
 	{
-		localStorage.setItem('showUnknown', e.target.checked);
-		loadLog(localStorage.getItem('logText') || '');
-	});
+		columnDefs:
+		[
+			{ field: 't', headerName: 'Time', width: 90 },
+			{ field: 'id', headerName: 'ID', width: 60 },
+			{ field: 'length', headerName: 'Len', width: 60 },
+			{ field: 'message', headerName: 'Message', width: 500 },
+		],
+		rowModelType: 'infinite',
+		datasource: infiniteDatasource,
+		cacheBlockSize: 100,
+		maxBlocksInCache: 10,
+		rowSelection:
+		{
+			mode: 'singleRow',
+			checkboxes: false,
+			enableClickSelection: true,
+		},
+		defaultColDef: {
+			resizable: false,
+			filter: false,
+			sortable: true,
+		},
+		onSelectionChanged,
+	};
 
-	const dbcText = localStorage.getItem('dbcText');
+	// Create Grid: Create new grid within the #myGrid div, using the Grid Options object
+	grid = createGrid(document.getElementById('logs-table'), gridOptions);
+}
+
+async function restoreData()
+{
+	let invalidated = false;
+
+	const dbcText = await loadByKey('dbc');
 	if (dbcText)
 	{
 		dbc = DBC.parse(dbcText);
-		setStatus(dbcStatus, 'Restored');
-		populateTransmitterList();
+
+		setDbcStatus(true);
+		console.log('restored dbc');
+		
+		invalidated = true;
 	}
 
-	const logText = localStorage.getItem('logText');
+	const logText = await loadByKey('log');
 	if (logText)
 	{
-		loadLog(logText);
-		setStatus(candumpStatus, 'Restored');
+		all_log_lines = logText.split('\n');
+
+		setLogStatus(true);
+		console.log(`restored log with ${all_log_lines.length} rows`);
+
+		invalidated = true;
 	}
-	
-	document.getElementById('text-filter').addEventListener('input', (e) =>
-	{
-		localStorage.setItem('textFilter', e.target.value);
-		loadLog(localStorage.getItem('logText') || '');
-	});
 
-	document.getElementById('dbc-load').onclick = triggerDBCLoad;
-	document.getElementById('log-load').onclick = triggerCandumpLoad;
-
-	document.getElementById('dbcFile').onchange = async (e) =>
-	{
-		const file = e.target.files[0];
-		if (!file) return;
-
-		const text = await file.text();
-		localStorage.setItem('dbcText', text);
-		dbc = DBC.parse(text);
-		setStatus(dbcStatus, file.name);
-		populateTransmitterList();
-		loadLog(localStorage.getItem('logText') || '');
-	};
-
-	document.getElementById('logFile').onchange = async (e) =>
-	{
-		const file = e.target.files[0];
-		if (!file) return;
-
-		const text = await file.text();
-		localStorage.setItem('logText', text);
-		loadLog(text);
-		setStatus(candumpStatus, file.name);
-	};
-});
-
-function setStatus(badge, label)
-{
-	// Optional: update badge UI
+	if (invalidated)
+		invalidateGrid();
 }
 
-function triggerDBCLoad()
+function restoreFilters()
 {
-	document.getElementById('dbcFile').click();
+	disabled_ids = getDisabledIds();
+
+	const showUnknown = localStorage.getItem('showUnknown') !== 'false';
+	document.getElementById('toggle-unknown').checked = showUnknown;
+
+	const textFilter = localStorage.getItem('textFilter') || '';
+	document.getElementById('text-filter').value = textFilter;
+
+	const dataEnabledTransmitters = JSON.parse(localStorage.getItem('enabledTransmitters') || '[]');
+	allowed_transmitters.clear();
+	dataEnabledTransmitters.forEach(tx => allowed_transmitters.add(tx));
+
+	populateTransmitterList();
+}
+
+const infiniteDatasource =
+{
+	async getRows(params)
+	{
+		const { startRow, endRow } = params;
+		const num_log_rows = all_log_lines.length;
+
+		const rows = [];
+		for (let i = startRow; i < endRow && i < num_log_rows; i++)
+		{
+			const decoded = decodeCandumpLine(all_log_lines[i]);
+
+			if (!decoded || !decoded.id)
+				continue;
+
+			// Optional: filtering logic here
+			if (!showUnknown.checked && !decoded.msg)
+				continue;
+
+			rows.push(
+			{
+				t: decoded.time.toFixed(3),
+				id: decoded.id.toString(16).toUpperCase().padStart(3, '0'),
+				length: decoded.length,
+				message: decoded.msg || '',
+			});
+		}
+
+		params.successCallback(rows, num_log_rows);
+	}
+};
+
+function onSelectionChanged(event)
+{
+	if (event.selectedNodes.length === 0)
+		return;
+
+	const row = event.selectedNodes[0].data;
+
+	console.log(row);
+}
+
+function invalidateGrid()
+{
+	grid.setGridOption('datasource', infiniteDatasource);
+}
+
+async function clearDbc()
+{
+	await saveByKey('dbc', '');
+	dbc = null;
+	invalidateGrid();
+
+	console.log('cleared dbc');
+}
+
+async function clearCandump()
+{
+	await saveByKey('log', '');
+	invalidateGrid();
+
+	console.log('cleared candump');
+}
+
+async function onToggleUnknown(e)
+{
+	localStorage.setItem('showUnknown', e.target.checked);
+
+	invalidateGrid();
+};
+
+async function onTextFilterInput(e)
+{
+	localStorage.setItem('textFilter', e.target.value);
+
+	invalidateGrid();
+};
+
+async function onLogFileChange(e)
+{
+	const file = e.target.files[0];
+	
+	if (!file)
+		return;
+
+	const text = await file.text();
+	all_log_lines = text.split('\n');
+
+	await saveByKey('log', text);	
+
+	invalidateGrid();
+	setLogStatus(true);
+
+	console.log('loaded log from file');
+};
+
+async function onDbcFileChange(e)
+{
+	const file = e.target.files[0];
+	
+	if (!file)
+		return;
+
+	const text = await file.text();
+	await saveByKey('dbc', text);
+	dbc = DBC.parse(text);
+	invalidateGrid();
+	setDbcStatus(true);
+
+	console.log('loaded dbc from file');
+}
+
+function setDbcStatus(enabled)
+{
+}
+
+function setLogStatus(enabled)
+{
+}
+
+function triggerDbcLoad()
+{
+	dbcFile.click();
 }
 
 function triggerCandumpLoad()
 {
-	document.getElementById('logFile').click();
-}
-
-function clearDBC()
-{
-	localStorage.removeItem('dbcText');
-	dbc = null;
-	setStatus(dbcStatus, 'Not Loaded');
-}
-
-function clearCandump()
-{
-	localStorage.removeItem('logText');
-	setStatus(candumpStatus, 'Not Loaded');
+	logFile.click();
 }
 
 function loadLog(text)
 {
 	const showUnknown = document.getElementById('toggle-unknown').checked;
-	const allowedTransmitters = new Set(getEnabledTransmitters());
+	
 	const lines = text.split('\n');
 	const rows = [];
 	const filterText = document.getElementById('text-filter').value.trim().toLowerCase();
@@ -137,10 +287,10 @@ function loadLog(text)
 		if (!row.msg && !showUnknown)
 			continue;
 		
-		if (disabledIds.has(idStr))
+		if (disabled_ids.has(idStr))
 			continue;
 
-		if (row.transmitter && !allowedTransmitters.has(row.transmitter))
+		if (row.transmitter && !allowed_transmitters.has(row.transmitter))
 			continue;
 
 		const fullText = `${row.idHex} ${row.msg || ''}`.toLowerCase();
@@ -148,30 +298,40 @@ function loadLog(text)
 			continue;
 		
 		let decodedHtml = '';
-		if (row.decoded) {
+		
+		if (row.decoded)
+		{
 			const entries = Object.entries(row.decoded);
 
-			if (entries.length) {
+			if (entries.length)
+			{
 				decodedHtml = `
 					<details>
 						<summary>${row.msg || ''}</summary>
 						<ul class="mb-0">
-							${entries.map(([k, v]) => {
+							${entries.map(([k, v]) =>
+							{
 								let val = v;
 								let label = k;
 
 								if (typeof v === 'object' && v !== null && 'value' in v) {
-									val = v.value;
-									label = v.comment || dbc?.signalComments.get(`${row.id}.${k}`) || k;
+									if ('label' in v) {
+										val = v.label;
+										label = v.comment || dbc?.signalComments.get(`${row.id}.${k}`) || k;
+									} else {
+										val = v.value;
+										label = v.comment || dbc?.signalComments.get(`${row.id}.${k}`) || k;
+									}
 								} else {
 									label = dbc?.signalComments.get(`${row.id}.${k}`) || k;
 								}
-
 								return `<li>${label}: ${val}</li>`;
 							}).join('')}
 						</ul>
 					</details>`;
-			} else {
+			}
+			else
+			{
 				decodedHtml = row.msg || '';
 			}
 		}
@@ -211,26 +371,25 @@ function updateIdCountTable(map)
 		input.type = 'checkbox';
 		input.className = 'btn-check';
 		input.id = `id-toggle-${id}`;
-		input.checked = !disabledIds.has(id);
+		input.checked = !disabled_ids.has(id);
 
 		label.setAttribute('for', input.id);
 
-		input.addEventListener('change', () =>
+		input.addEventListener('change', async () =>
 		{
 			if (input.checked)
-				disabledIds.delete(id);
+				disabled_ids.delete(id);
 			else
-				disabledIds.add(id);
+				disabled_ids.add(id);
 
-			setDisabledIds(disabledIds);
-			loadLog(localStorage.getItem('logText') || '');
+			setDisabledIds(disabled_ids);
+			loadLog(await loadByKey('log'));
 		});
 
 		container.appendChild(input);
 		container.appendChild(label);
 	}
 }
-
 
 function decodeCandumpLine(rawLine)
 {
@@ -262,12 +421,6 @@ function decodeCandumpLine(rawLine)
 	};
 }
 
-
-function getEnabledTransmitters()
-{
-	return JSON.parse(localStorage.getItem('enabledTransmitters') || '[]');
-}
-
 function setEnabledTransmitters(list)
 {
 	localStorage.setItem('enabledTransmitters', JSON.stringify(list));
@@ -279,12 +432,10 @@ function populateTransmitterList()
 	container.innerHTML = '';
 
 	const all = dbc.getTransmitters();
-	let enabled = new Set(getEnabledTransmitters());
+	let enabled = new Set(allowed_transmitters);
 
 	if (enabled.size === 0)
-	{
 		enabled = new Set(all);
-	}
 
 	for (const tx of all)
 	{
@@ -299,19 +450,16 @@ function populateTransmitterList()
 
 		const checkbox = li.querySelector('input');
 
-		checkbox.addEventListener('change', () =>
+		checkbox.addEventListener('change', async () =>
 		{
 			if (checkbox.checked)
-			{
 				enabled.add(tx);
-			}
 			else
-			{
 				enabled.delete(tx);
-			}
 
 			setEnabledTransmitters([...enabled]);
-			loadLog(localStorage.getItem('logText') || '');
+
+			grid.redrawRows();
 		});
 
 		container.appendChild(li);
@@ -328,4 +476,73 @@ function getDisabledIds()
 function setDisabledIds(set)
 {
 	localStorage.setItem('disabledIds', JSON.stringify([...set]));
+}
+
+function setupDragAndDrop()
+{
+	// Prevent default drag behaviors
+	['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName =>
+	{
+		window.addEventListener(eventName, preventDefaults, false);
+		document.body.addEventListener(eventName, preventDefaults, false);
+	});
+
+	// Handle dropped files
+	window.addEventListener('drop', handleDrop, false);
+	document.body.addEventListener('drop', handleDrop, false);
+}
+
+function preventDefaults(e)
+{
+	e.preventDefault();
+	e.stopPropagation();
+}
+
+async function handleDrop(e)
+{
+	e.preventDefault();
+	e.stopPropagation();
+	
+	const files = e.dataTransfer.files;
+	
+	// Log each file's details
+	for (let i = 0; i < files.length; i++)
+	{
+		const file = files[i];
+
+		//check if the file is a dbc file
+		if (file.name.endsWith('.dbc'))
+		{
+			const text = await file.text();
+			dbc = DBC.parse(text);
+
+			//save file to database
+			await saveByKey('dbc', text);
+
+			setDbcStatus(true);
+
+			console.log('loaded dbc from drag/drop');
+
+			//invalidate the grid
+			invalidateGrid();
+		}
+		else if (file.name.endsWith('.log'))
+		{
+			const text = await file.text();
+
+			//save file to database
+			await saveByKey('log', text);
+
+			setLogStatus(true);
+
+			console.log('loaded log from drag/drop');
+
+			//invalidate the grid
+			invalidateGrid();
+		}
+		else
+		{
+			console.log('Unsupported file type:', file.name);
+		}
+	}
 }

@@ -17,33 +17,33 @@
 								<i class="bi bi-funnel"></i>
 							</span>
 							<input type="text" id="text-filter" class="form-control" placeholder="Filter...">
+<!--
 							<input type="checkbox" class="btn-check" id="type-info">
 							<label class="btn btn-outline-secondary" for="type-info">Info</label>
 							<input type="checkbox" class="btn-check" id="type-warning">
 							<label class="btn btn-outline-secondary" for="type-warning">Warn</label>
+-->
 						</div>
 					</div>
 
 					<div class="filter-group ms-auto d-flex align-items-center gap-2">
-						<!-- DBC controls -->
 						<div class="btn-group btn-group-sm" role="group" aria-label="DBC Load/Clear">
 							<button class="btn btn-outline-primary" id="dbc-load">DBC</button>
-							<button class="btn btn-outline-danger" id="dbc-clear" title="Clear DBC">
+							<button class="btn btn-outline-primary" id="dbc-clear" title="Clear DBC">
 								<i class="bi bi-x-circle"></i>
 							</button>
 						</div>
-						<input type="file" id="dbcFile" accept=".dbc" style="display: none;">
+						<input type="file" id="dbc-file" accept=".dbc" style="display: none;">
 
-						<!-- LOG controls -->
 						<div class="btn-group btn-group-sm" role="group" aria-label="LOG Load/Clear">
 							<button class="btn btn-outline-primary" id="log-load">LOG</button>
-							<button class="btn btn-outline-danger" id="log-clear" title="Clear Log">
+							<button class="btn btn-outline-primary" id="log-clear" title="Clear Log">
 								<i class="bi bi-x-circle"></i>
 							</button>
 						</div>
-						<input type="file" id="logFile" accept=".log,.txt" style="display: none;">
+						<input type="file" id="log-file" accept=".log,.txt" style="display: none;">
 					</div>
-
+<!--
 					<div class="filter-group ms-auto">
 						<div class="btn-group btn-group-sm" role="group" aria-label="Auto-scroll toggle">
 							<input type="checkbox" class="btn-check" id="auto-scroll" checked>
@@ -58,29 +58,18 @@
 							<i class="bi bi-download"></i> Save
 						</button>
 					</div>
+-->
 				</div>
 			</div>
 
-			<div class="d-flex gap-3 align-items-start">
-				<div class="flex-grow-1 logs-table-container">
-					<table id="logs-table" class="table table-sm table-hover logs-table">
-						<thead class="table-dark">
-							<tr>
-								<th scope="col" class="text-end">Timestamp</th>
-								<th scope="col" class="text-center">ID</th>
-								<th scope="col" class="text-center">Len</th>
-								<th scope="col">Category</th>
-								<th scope="col">Message</th>
-							</tr>
-						</thead>
-						
-						<tbody id="logs-tbody">
-							<!-- Log entries will be inserted here -->
-						</tbody>
-					</table>
+			<div class="d-flex flex-grow-1 overflow-hidden">
+				<!-- Left column (log table) -->
+				<div class="flex-grow-1 overflow-auto p-1" id="logs-table">
+					<!-- logs table -->
 				</div>
 
-				<div class="pt-2 d-flex flex-column scrollable-sidebar">
+				<!-- Right column (sidebar) -->
+				<div class="d-flex flex-column h-100 pt-2 px-1 overflow-auto" style="width: 18em;">
 					<div class="form-check form-switch mb-2">
 						<input class="form-check-input" type="checkbox" id="toggle-unknown">
 						<label class="form-check-label" for="toggle-unknown">Show Unknown</label>
