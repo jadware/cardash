@@ -116,26 +116,26 @@ export class DBC
 	decodeFrame(id, bytes)
 	{
 		const msg = this.messages.get(id);
-
 		if (!msg || !msg.signals || msg.signals.length === 0)
 			return null;
-
+	
 		const result = {};
-		
+	
 		const muxSig = msg.signals.find(s => s.multiplexerIndicator === 'M');
-		
-		const muxVal = muxSig
-			? toSigned(
-				extractSignalBits(bytes, muxSig.startBit, muxSig.length, muxSig.byteOrder === 1),
-				muxSig.length
-			  ) * muxSig.factor + muxSig.offset
-			: null;
-		
+		let muxVal = null;
+	
+		if (muxSig)
+		{
+			const rawMuxVal = extractSignalBits(bytes, muxSig.startBit, muxSig.length, muxSig.byteOrder === 1);
+			const val = muxSig.isSigned ? toSigned(rawMuxVal, muxSig.length) : rawMuxVal;
+			muxVal = val * muxSig.factor + muxSig.offset;
+	
+			// include mux signal itself
+			result[muxSig.name] = muxVal;
+		}
+	
 		for (const sig of msg.signals)
 		{
-			if (sig.multiplexerIndicator === 'M')
-				continue;
-
 			if (sig.multiplexerIndicator?.startsWith('m'))
 			{
 				const mVal = Number(sig.multiplexerIndicator.slice(1));
@@ -143,15 +143,16 @@ export class DBC
 				if (muxVal !== mVal)
 					continue;
 			}
-			
+		
 			const rawVal = extractSignalBits(bytes, sig.startBit, sig.length, sig.byteOrder === 1);
 			const val = sig.isSigned ? toSigned(rawVal, sig.length) : rawVal;
 			const value = val * sig.factor + sig.offset;
-
+			const unit = sig.unit;
+		
 			const key = `${id}.${sig.name}`;
 			const comment = this.signalComments.get(key);
 			const valMap = this.valueTables.get(key);
-
+		
 			if (valMap?.hasOwnProperty(val))
 			{
 				result[sig.name] =
@@ -171,10 +172,14 @@ export class DBC
 			}
 			else
 			{
-				result[sig.name] = value;
+				result[sig.name] =
+				{
+					value,
+					unit,
+				};
 			}
 		}
-
+	
 		return result;
 	}
 }
