@@ -61,4 +61,6 @@ A browser-based tool for visualizing and decoding candump-format CAN bus logs us
 ## Purpose
 - knob temperature control and fan control
 - blind spot monitoring LED's that auto-adjust to day/night
-- 
+- DBC explorer / analyzer to follow one id over time in a graph or timeline of some kind
+- ability to playback to a serial port, with control, for reverse engineering 3rd party devices
+- synchronize to car's dashcams
