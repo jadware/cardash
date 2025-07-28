@@ -72,7 +72,8 @@ function createTable()
 			checkboxes: false,
 			enableClickSelection: true,
 		},
-		defaultColDef: {
+		defaultColDef:
+		{
 			resizable: false,
 			filter: false,
 			sortable: true,
@@ -166,11 +167,14 @@ const infiniteDatasource =
 function onSelectionChanged(event)
 {
 	if (event.selectedNodes.length === 0)
+	{
+		console.log('selection cleared');
+		selectRecord(null);
 		return;
+	}
 
 	const row = event.selectedNodes[0].data;
-
-	console.log(row);
+	selectRecord(row);
 }
 
 function invalidateGrid()
@@ -243,12 +247,25 @@ async function onDbcFileChange(e)
 	console.log('loaded dbc from file');
 }
 
+
+function selectRecord(row)
+{
+	if (!row)
+	{
+		return;
+	}
+
+	console.log('select record', row);
+}
+
 function setDbcStatus(enabled)
 {
+	//TODO
 }
 
 function setLogStatus(enabled)
 {
+	//TODO
 }
 
 function triggerDbcLoad()
