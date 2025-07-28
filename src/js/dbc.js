@@ -63,7 +63,7 @@ export class DBC
 					min,
 					max,
 					unit,
-					receivers: receivers.trim().split(/\s+/),
+					receiver: receivers.trim(),
 					multiplexerIndicator: muxIndicator || null, // "M", "m1", or null
 					raw: line
 				});
@@ -97,6 +97,9 @@ export class DBC
 			}
 		}
 
+		const totalSignals = Array.from(dbc.messages.values()).reduce((sum, msg) => sum + msg.signals.length, 0);
+		console.log(`DBC >>>  msg: ${dbc.messages.size}  |  sig: ${totalSignals}  |  sigcom: ${dbc.signalComments.size}  |  val: ${dbc.valueTables.size}  |  tx: ${dbc.transmitters.size}`);
+
 		return dbc;
 	}
 
@@ -127,7 +130,7 @@ export class DBC
 				muxSig.length
 			  ) * muxSig.factor + muxSig.offset
 			: null;
-
+		
 		for (const sig of msg.signals)
 		{
 			if (sig.multiplexerIndicator === 'M')
@@ -155,7 +158,7 @@ export class DBC
 				{
 					value,
 					label: valMap[val],
-					comment
+					comment: comment || null,
 				};
 			}
 			else if (comment)
@@ -163,7 +166,7 @@ export class DBC
 				result[sig.name] =
 				{
 					value,
-					comment
+					comment,
 				};
 			}
 			else
