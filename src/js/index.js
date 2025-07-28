@@ -142,6 +142,9 @@ const infiniteDatasource =
 		const { startRow, endRow } = params;
 		const num_log_rows = all_log_lines.length;
 
+		// Get the current text filter value
+		const filterText = textFilter.value.toLowerCase().trim();
+
 		const rows = [];
 		for (let i = startRow; i < endRow && i < num_log_rows; i++)
 		{
@@ -153,6 +156,21 @@ const infiniteDatasource =
 			// Optional: filtering logic here
 			if (!showUnknown.checked && !payload.msg)
 				continue;
+
+			// Text filtering: check if filtertext is included in id, msg, or html
+			if (filterText)
+			{
+				const idStr = payload.id.toString(16).toUpperCase().padStart(3, '0');
+				const msgStr = payload.msg || '';
+				const htmlStr = payload.html || '';
+
+				const matchesFilter = idStr.toLowerCase().includes(filterText) ||
+									msgStr.toLowerCase().includes(filterText) ||
+									htmlStr.toLowerCase().includes(filterText);
+
+				if (!matchesFilter)
+					continue;
+			}
 
 			rows.push(
 			{
