@@ -22,11 +22,13 @@ export class DBC
 			if (line.startsWith('BO_'))
 			{
 				const match = line.match(/^BO_\s+(\d+)\s+(\w+)\s*:\s*(\d+)\s+(\w+)/);
+				
 				if (!match)
 					continue;
 
 				const [, id, name, dlc, transmitter] = match;
-				currentMsg = {
+				currentMsg =
+				{
 					id: Number(id),
 					name,
 					dlc: Number(dlc),
@@ -38,12 +40,12 @@ export class DBC
 			}
 			else if (line.startsWith('SG_') && currentMsg)
 			{
-				const match = line.match(/^SG_\s+(\w+)(?:\s+M\s+(\d+))?\s*:\s*(\d+)\|(\d+)@(\d)([+-])\s+\(([^)]+)\)\s+\[([^\]]+)\]\s+"([^"]*)"\s+(.+)/);
+				const match = line.match(/^SG_\s+(\w+)(?:\s+(M|m\d+))?\s*:\s*(\d+)\|(\d+)@(\d)([+-])\s+\(([^)]+)\)\s+\[([^\]]+)\]\s+"([^"]*)"\s+(.*)$/);
 				if (!match)
 					continue;
 
 				const [
-					, name, muxSwitch, startBit, length, byteOrder, sign,
+					, name, muxIndicator, startBit, length, byteOrder, sign,
 					scaleOffset, minMax, unit, receivers
 				] = match;
 
@@ -62,13 +64,14 @@ export class DBC
 					max,
 					unit,
 					receivers: receivers.trim().split(/\s+/),
-					muxSwitch: muxSwitch ? Number(muxSwitch) : null,
+					multiplexerIndicator: muxIndicator || null, // "M", "m1", or null
 					raw: line
 				});
 			}
 			else if (line.startsWith('CM_ SG_'))
 			{
 				const match = line.match(/^CM_ SG_ (\d+)\s+(\w+)\s+"([^"]+)"/);
+				
 				if (match)
 				{
 					const [, msgId, sigName, comment] = match;
@@ -85,8 +88,10 @@ export class DBC
 					const map = {};
 					const regex = /(\d+)\s+"([^"]+)"/g;
 					let m;
+					
 					while ((m = regex.exec(rest)))
 						map[parseInt(m[1], 10)] = m[2];
+					
 					dbc.valueTables.set(key, map);
 				}
 			}
@@ -108,12 +113,34 @@ export class DBC
 	decodeFrame(id, bytes)
 	{
 		const msg = this.messages.get(id);
-		if (!msg) return null;
+
+		if (!msg || !msg.signals || msg.signals.length === 0)
+			return null;
 
 		const result = {};
+		
+		const muxSig = msg.signals.find(s => s.multiplexerIndicator === 'M');
+		
+		const muxVal = muxSig
+			? toSigned(
+				extractSignalBits(bytes, muxSig.startBit, muxSig.length, muxSig.byteOrder === 1),
+				muxSig.length
+			  ) * muxSig.factor + muxSig.offset
+			: null;
 
 		for (const sig of msg.signals)
 		{
+			if (sig.multiplexerIndicator === 'M')
+				continue;
+
+			if (sig.multiplexerIndicator?.startsWith('m'))
+			{
+				const mVal = Number(sig.multiplexerIndicator.slice(1));
+				
+				if (muxVal !== mVal)
+					continue;
+			}
+			
 			const rawVal = extractSignalBits(bytes, sig.startBit, sig.length, sig.byteOrder === 1);
 			const val = sig.isSigned ? toSigned(rawVal, sig.length) : rawVal;
 			const value = val * sig.factor + sig.offset;
@@ -124,7 +151,8 @@ export class DBC
 
 			if (valMap?.hasOwnProperty(val))
 			{
-				result[sig.name] = {
+				result[sig.name] =
+				{
 					value,
 					label: valMap[val],
 					comment
@@ -132,7 +160,8 @@ export class DBC
 			}
 			else if (comment)
 			{
-				result[sig.name] = {
+				result[sig.name] =
+				{
 					value,
 					comment
 				};
@@ -160,7 +189,8 @@ function extractSignalBits(bytes, startBit, length, littleEndian)
 		const byteIndex = Math.floor(bitIndex / 8);
 		const bitPos = bitIndex % 8;
 
-		if (byteIndex >= bytes.length) continue;
+		if (byteIndex >= bytes.length)
+			continue;
 
 		const bit = (bytes[byteIndex] >> bitPos) & 1;
 		value |= bit << i;
