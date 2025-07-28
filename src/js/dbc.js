@@ -62,7 +62,7 @@ export class DBC
 					offset,
 					min,
 					max,
-					unit,
+					unit: unit || null,
 					receiver: receivers.trim(),
 					multiplexerIndicator: muxIndicator || null, // "M", "m1", or null
 					raw: line
@@ -139,7 +139,7 @@ export class DBC
 			if (sig.multiplexerIndicator?.startsWith('m'))
 			{
 				const mVal = Number(sig.multiplexerIndicator.slice(1));
-				
+
 				if (muxVal !== mVal)
 					continue;
 			}
@@ -151,16 +151,18 @@ export class DBC
 		
 			const key = `${id}.${sig.name}`;
 			const comment = this.signalComments.get(key);
-			const valMap = this.valueTables.get(key);
+			const value_label_map = this.valueTables.get(key);
 		
-			if (valMap?.hasOwnProperty(val))
+			if (value_label_map?.hasOwnProperty(val))
 			{
 				result[sig.name] =
 				{
 					value,
-					label: valMap[val],
-					comment: comment || null,
+					label: value_label_map[val],
 				};
+
+				if (comment)
+					result[sig.name].comment = comment;
 			}
 			else if (comment)
 			{
@@ -172,11 +174,18 @@ export class DBC
 			}
 			else
 			{
-				result[sig.name] =
+				if (unit)
 				{
-					value,
-					unit,
-				};
+					result[sig.name] =
+					{
+						value,
+						unit,
+					};
+				}
+				else
+				{
+					result[sig.name] = value;
+				}
 			}
 		}
 	
