@@ -4,6 +4,10 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import '../index.scss';
 import Clusterize from './clusterize.js';
 import { DBC } from './dbc.js';
+import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community'; 
+
+// Register all Community features
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 const dbcStatus = document.getElementById('dbcStatus');
 const candumpStatus = document.getElementById('candumpStatus');
