@@ -8,7 +8,6 @@ import { createGrid } from 'ag-grid-community';
 import { AllCommunityModule, ModuleRegistry } from 'ag-grid-community';
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const logTable = document.getElementById('logs-tbody');
 const toggleUnknown = document.getElementById('toggle-unknown');
 const textFilter = document.getElementById('text-filter');
 
@@ -22,11 +21,14 @@ const logClear = document.getElementById('log-clear');
 
 const showUnknown = document.getElementById('toggle-unknown');
 
+let all_log_lines = [];
+const decoded_lines = [];
+const logs_by_id = new Map(); // key: id (number), value: array of decoded entries
+
 let disabled_ids = new Set();
 let dbc = null;
 let grid = null;
 const allowed_transmitters = new Set();
-let all_log_lines = [];
 
 
 window.addEventListener('DOMContentLoaded', async () =>
@@ -50,6 +52,7 @@ window.addEventListener('DOMContentLoaded', async () =>
 	logClear.onclick = clearCandump;
 });
 
+
 function createTable()
 {
 	//setup ag-grid 
@@ -59,13 +62,13 @@ function createTable()
 		[
 			{ field: 't', headerName: 'Time', width: 90 },
 			{ field: 'id', headerName: 'ID', width: 60 },
-			{ field: 'length', headerName: 'Len', width: 60 },
-			{ field: 'message', headerName: 'Message', width: 500 },
+			//{ field: 'length', headerName: 'Len', width: 60 },
+			{ field: 'decoded', headerName: 'Data', flex: 1, cellRenderer: decodedCellRenderer },
 		],
 		rowModelType: 'infinite',
 		datasource: infiniteDatasource,
-		cacheBlockSize: 100,
-		maxBlocksInCache: 10,
+		cacheBlockSize: 1000,
+		maxBlocksInCache: 1000,
 		rowSelection:
 		{
 			mode: 'singleRow',
@@ -78,6 +81,7 @@ function createTable()
 			filter: false,
 			sortable: true,
 		},
+		rowHeight: 20,
 		onSelectionChanged,
 	};
 
@@ -103,9 +107,7 @@ async function restoreData()
 	const logText = await loadByKey('log');
 	if (logText)
 	{
-		all_log_lines = logText.split('\n');
-
-		setLogStatus(true);
+		processLog(logText);
 		console.log(`restored log with ${all_log_lines.length} rows`);
 
 		invalidated = true;
@@ -142,21 +144,24 @@ const infiniteDatasource =
 		const rows = [];
 		for (let i = startRow; i < endRow && i < num_log_rows; i++)
 		{
-			const decoded = decodeCandumpLine(all_log_lines[i]);
+			const payload = decoded_lines[i];
 
-			if (!decoded || !decoded.id)
+			if (!payload || !payload.id)
 				continue;
 
 			// Optional: filtering logic here
-			if (!showUnknown.checked && !decoded.msg)
+			if (!showUnknown.checked && !payload.msg)
 				continue;
 
 			rows.push(
 			{
-				t: decoded.time.toFixed(3),
-				id: decoded.id.toString(16).toUpperCase().padStart(3, '0'),
-				length: decoded.length,
-				message: decoded.msg || '',
+				t: payload.time.toFixed(3),
+				id: payload.id.toString(16).toUpperCase().padStart(3, '0'),
+				length: payload.length,
+				msg: payload.msg,
+				decoded: payload.decoded,
+				dataHex: payload.dataHex,
+				html: payload.html,
 			});
 		}
 
@@ -164,11 +169,74 @@ const infiniteDatasource =
 	}
 };
 
+function decodedCellRenderer(params)
+{
+	if (!params.data)
+		return ''; //still loading
+
+	if (!params.data.msg)
+		return `<span class="opacity-25">${params.data.dataHex}</span>`;
+
+	if (params.value && params.data.html)
+		return params.data.html;
+
+	return `<span>${params.data.msg}</span>`;
+	
+}
+
+function decodeCandumpLine(rawLine)
+{
+	const regex = /^\((\d+\.\d+)\)\s+(\S+)\s+([A-Fa-f0-9]+)#([A-Fa-f0-9]*)$/;
+	const line = rawLine.trim().replace(/\s+/g, ' ');
+	const match = line.match(regex);
+
+	if (!match)
+		return {};
+
+	const [, time, iface, id, dataHex] = match;
+	const bytes = dataHex.match(/.{1,2}/g)?.map(b => parseInt(b, 16)) || [];
+	const numericId = parseInt(id, 16);
+	const message = dbc?.getMessageById(numericId);
+
+	let html = '';
+	const decoded = dbc?.decodeFrame(numericId, bytes);
+	if (decoded)
+	{
+		//check if any of the decoded keys have a value with a comment
+		let fields = [];
+		for (let key in decoded)
+		{
+			const value = decoded[key];
+
+			//only add if it has a comment
+			if (value.comment)
+				fields.push(value);
+		}
+
+		//show comment and value for each of the fields
+		if (fields.length > 0)
+			html = fields.map(field => `${field.comment}: ${field.value}`).join(' | ');
+	}
+
+	return {
+		time: parseFloat(time),
+		interface: iface,
+		id: numericId,
+		msg: message?.name,
+		transmitter: message?.transmitter,
+		idHex: id.toUpperCase(),
+		bytes,
+		dataHex: bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' '),
+		length: bytes.length,
+		decoded,
+		html,
+	};
+}
+
 function onSelectionChanged(event)
 {
 	if (event.selectedNodes.length === 0)
 	{
-		console.log('selection cleared');
 		selectRecord(null);
 		return;
 	}
@@ -221,14 +289,12 @@ async function onLogFileChange(e)
 		return;
 
 	const text = await file.text();
-	all_log_lines = text.split('\n');
-
-	await saveByKey('log', text);	
+	processLog(text);
+	console.log('loaded log from file');
 
 	invalidateGrid();
-	setLogStatus(true);
 
-	console.log('loaded log from file');
+	await saveByKey('log', text);
 };
 
 async function onDbcFileChange(e)
@@ -247,15 +313,29 @@ async function onDbcFileChange(e)
 	console.log('loaded dbc from file');
 }
 
+function processLog(text)
+{
+	all_log_lines = text.split('\n');
+	decoded_lines.length = all_log_lines.length;
+
+	//pre-preocess all the lines
+	//TODO: do this in the background after initial loaading?
+	for (let i = 0; i < all_log_lines.length; i++)
+		decoded_lines[i] = decodeCandumpLine(all_log_lines[i]);
+
+	setLogStatus(true);
+	
+}
 
 function selectRecord(row)
 {
 	if (!row)
 	{
+		console.log('selection cleared');
 		return;
 	}
 
-	console.log('select record', row);
+	console.log('select record', row.payload);
 }
 
 function setDbcStatus(enabled)
@@ -276,166 +356,6 @@ function triggerDbcLoad()
 function triggerCandumpLoad()
 {
 	logFile.click();
-}
-
-function loadLog(text)
-{
-	const showUnknown = document.getElementById('toggle-unknown').checked;
-	
-	const lines = text.split('\n');
-	const rows = [];
-	const filterText = document.getElementById('text-filter').value.trim().toLowerCase();
-	const idCountMap = new Map(); // New lookup table
-
-	for (let line of lines)
-	{
-		if (!line.includes('#'))
-			continue;
-
-		const row = decodeCandumpLine(line);
-		if (!row.id)
-			continue;
-
-		// Count ID regardless of filters
-		const idStr = row.id.toString(16).toUpperCase().padStart(3, '0');
-		idCountMap.set(idStr, (idCountMap.get(idStr) || 0) + 1);
-
-		// Apply display filters
-		if (!row.msg && !showUnknown)
-			continue;
-		
-		if (disabled_ids.has(idStr))
-			continue;
-
-		if (row.transmitter && !allowed_transmitters.has(row.transmitter))
-			continue;
-
-		const fullText = `${row.idHex} ${row.msg || ''}`.toLowerCase();
-		if (filterText && !fullText.includes(filterText))
-			continue;
-		
-		let decodedHtml = '';
-		
-		if (row.decoded)
-		{
-			const entries = Object.entries(row.decoded);
-
-			if (entries.length)
-			{
-				decodedHtml = `
-					<details>
-						<summary>${row.msg || ''}</summary>
-						<ul class="mb-0">
-							${entries.map(([k, v]) =>
-							{
-								let val = v;
-								let label = k;
-
-								if (typeof v === 'object' && v !== null && 'value' in v) {
-									if ('label' in v) {
-										val = v.label;
-										label = v.comment || dbc?.signalComments.get(`${row.id}.${k}`) || k;
-									} else {
-										val = v.value;
-										label = v.comment || dbc?.signalComments.get(`${row.id}.${k}`) || k;
-									}
-								} else {
-									label = dbc?.signalComments.get(`${row.id}.${k}`) || k;
-								}
-								return `<li>${label}: ${val}</li>`;
-							}).join('')}
-						</ul>
-					</details>`;
-			}
-			else
-			{
-				decodedHtml = row.msg || '';
-			}
-		}
-
-		rows.push(`
-			<tr>
-				<td class="text-end opacity-50">${row.time.toFixed(3)}</td>
-				<td class="text-center">${idStr}</td>
-				<td class="text-center">${row.length}</td>
-				<td></td>
-				<td>${decodedHtml}</td>
-			</tr>`);
-	}
-
-	logTable.innerHTML = rows.join('');
-	updateIdCountTable(idCountMap); // Update table UI
-}
-
-function updateIdCountTable(map)
-{
-	const container = document.getElementById('id-count-buttons');
-	container.innerHTML = '';
-
-	const entries = [...map.entries()].sort((a, b) => b[1] - a[1]);
-
-	for (const [id, count] of entries)
-	{
-		const label = document.createElement('label');
-		label.className = 'btn btn-outline-secondary btn-sm';
-		
-		const numericId = parseInt(id, 16);
-		const name = dbc?.getMessageById(numericId)?.name || id;
-		label.innerText = `${name} (${count})`;
-		label.title = `ID: ${id}`;
-
-		const input = document.createElement('input');
-		input.type = 'checkbox';
-		input.className = 'btn-check';
-		input.id = `id-toggle-${id}`;
-		input.checked = !disabled_ids.has(id);
-
-		label.setAttribute('for', input.id);
-
-		input.addEventListener('change', async () =>
-		{
-			if (input.checked)
-				disabled_ids.delete(id);
-			else
-				disabled_ids.add(id);
-
-			setDisabledIds(disabled_ids);
-			loadLog(await loadByKey('log'));
-		});
-
-		container.appendChild(input);
-		container.appendChild(label);
-	}
-}
-
-function decodeCandumpLine(rawLine)
-{
-	const regex = /^\((\d+\.\d+)\)\s+(\S+)\s+([A-Fa-f0-9]+)#([A-Fa-f0-9]*)$/;
-	const line = rawLine.trim().replace(/\s+/g, ' ');
-	const match = line.match(regex);
-
-	if (!match)
-		return {};
-
-	const [, time, iface, id, dataHex] = match;
-	const bytes = dataHex.match(/.{1,2}/g)?.map(b => parseInt(b, 16)) || [];
-	const numericId = parseInt(id, 16);
-	const message = dbc?.getMessageById(numericId);
-
-	const decoded = dbc?.decodeFrame(numericId, bytes);
-
-	return {
-		time: parseFloat(time),
-		interface: iface,
-		id: numericId,
-		msg: message?.name,
-		transmitter: message?.transmitter,
-		idHex: id.toUpperCase(),
-		data: bytes,
-		dataHex: bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()),
-		length: bytes.length,
-		decoded
-	};
 }
 
 function setEnabledTransmitters(list)
