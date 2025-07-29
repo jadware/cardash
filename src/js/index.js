@@ -55,7 +55,6 @@ let timeFilterMin = 0;
 let timeFilterMax = 0;
 
 
-
 window.addEventListener('DOMContentLoaded', async () =>
 {
 	createTable();
@@ -117,6 +116,10 @@ function createTable()
 		onSelectionChanged,
 		onCellValueChanged,
 		onCellKeyDown,
+		rowClassRules:
+		{
+			'row-selected-id': (params) => params.data?.id === id_selected,
+		},
 	};
 
 	// Create Grid: Create new grid within the #myGrid div, using the Grid Options object
@@ -608,6 +611,9 @@ function selectRecord(row)
 	id_selected = row.id;
 	localStorage.setItem('can_id_selected', row.id);
 	fillTimeline(timeline, row.id, true);
+	
+	// Trigger grid refresh to recalculate row class rules
+	grid.redrawRows();
 }
 
 function fillTimeline(timeline, id, force)

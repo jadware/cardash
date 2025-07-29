@@ -225,3 +225,14 @@ body
 	stroke: rgba(64, 128, 128, 0.9);
 	cursor: pointer;
 }
+
+// Subtle highlighting for rows matching selected CAN ID
+.row-selected-id
+{
+	background-color: rgba(0, 123, 255, 0.05) !important;
+	
+	&:hover
+	{
+		background-color: rgba(0, 123, 255, 0.15) !important;
+	}
+}
