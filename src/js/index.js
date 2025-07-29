@@ -23,6 +23,11 @@ const showUnknown = document.getElementById('toggle-unknown');
 const timeline = document.getElementById('timeline');
 const rowCount = document.getElementById('row-count');
 
+// Debounce mechanism for text filtering
+let filterDebounceTimer = null;
+let lastFilterTime = 0;
+const FILTER_DEBOUNCE_DELAY = 500; // 500ms = 2 times per second max
+
 let all_log_lines = [];
 const decoded_lines = [];
 
@@ -367,7 +372,31 @@ async function onTextFilterInput(e)
 {
 	localStorage.setItem('textFilter', e.target.value);
 
-	invalidateGrid();
+	const now = Date.now();
+	const timeSinceLastFilter = now - lastFilterTime;
+
+	// Clear existing timer
+	if (filterDebounceTimer)
+	{
+		clearTimeout(filterDebounceTimer);
+	}
+
+	// If enough time has passed since last filter, trigger immediately
+	if (timeSinceLastFilter >= FILTER_DEBOUNCE_DELAY)
+	{
+		lastFilterTime = now;
+		invalidateGrid();
+	}
+	else
+	{
+		// Set timer to trigger after the minimum delay
+		const remainingDelay = FILTER_DEBOUNCE_DELAY - timeSinceLastFilter;
+		filterDebounceTimer = setTimeout(() =>
+		{
+			lastFilterTime = Date.now();
+			invalidateGrid();
+		}, remainingDelay);
+	}
 };
 
 async function onLogFileChange(e)
