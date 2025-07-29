@@ -148,40 +148,59 @@ const infiniteDatasource =
 	async getRows(params)
 	{
 		const { startRow, endRow } = params;
-		const num_log_rows = all_log_lines.length;
-
-		// Get the current text filter value
+		
+		// Get the current filter values
 		const filterText = textFilter.value.toLowerCase().trim();
+		const showUnknownChecked = showUnknown.checked;
 
-		const rows = [];
-		for (let i = startRow; i < endRow && i < num_log_rows; i++)
+		// Pre-calculate filtered row indices (only do this once per filter change)
+		if (!this.filteredIndices || this.lastFilterText !== filterText || this.lastShowUnknown !== showUnknownChecked)
 		{
-			const payload = decoded_lines[i];
+			this.filteredIndices = [];
+			this.lastFilterText = filterText;
+			this.lastShowUnknown = showUnknownChecked;
 
-			if (!payload || !payload.id)
-				continue;
-
-			// Optional: filtering logic here
-			if (!showUnknown.checked && !payload.msg)
-				continue;
-
-			// Text filtering: check if filtertext is included in id, msg, or html
-			if (filterText)
+			for (let i = 0; i < all_log_lines.length; i++)
 			{
-				const idStr = payload.id.toString(16).toUpperCase().padStart(3, '0');
-				const msgStr = payload.msg || '';
-				const htmlStr = payload.html || '';
+				const payload = decoded_lines[i];
 
-				const matchesFilter = idStr.toLowerCase().includes(filterText) ||
-									msgStr.toLowerCase().includes(filterText) ||
-									htmlStr.toLowerCase().includes(filterText);
-
-				if (!matchesFilter)
+				if (!payload || !payload.id)
 					continue;
-			}
 
-			rows.push(
-			{
+				// Apply "Show Unknown" filter
+				if (!showUnknownChecked && !payload.msg)
+					continue;
+
+				// Apply text filter
+				if (filterText)
+				{
+					const idStr = payload.id.toString(16).toUpperCase().padStart(3, '0');
+					const msgStr = payload.msg || '';
+					const htmlStr = payload.html || '';
+
+					const matchesFilter = idStr.toLowerCase().includes(filterText) ||
+										msgStr.toLowerCase().includes(filterText) ||
+										htmlStr.toLowerCase().includes(filterText);
+
+					if (!matchesFilter)
+						continue;
+				}
+
+				// This row passes all filters
+				this.filteredIndices.push(i);
+			}
+		}
+
+		// Get the requested range from filtered indices
+		const filteredRows = [];
+		const totalFilteredRows = this.filteredIndices.length;
+
+		for (let i = startRow; i < endRow && i < totalFilteredRows; i++)
+		{
+			const originalIndex = this.filteredIndices[i];
+			const payload = decoded_lines[originalIndex];
+
+			filteredRows.push({
 				t: payload.time.toFixed(3),
 				id: payload.id.toString(16).toUpperCase().padStart(3, '0'),
 				length: payload.length,
@@ -192,7 +211,8 @@ const infiniteDatasource =
 			});
 		}
 
-		params.successCallback(rows, num_log_rows);
+		// Return the correct total count of filtered rows
+		params.successCallback(filteredRows, totalFilteredRows);
 	}
 };
 
@@ -303,6 +323,14 @@ function onCellValueChanged(event)
 
 function invalidateGrid()
 {
+	// Clear cached filtered indices so they get recalculated
+	if (infiniteDatasource.filteredIndices)
+	{
+		delete infiniteDatasource.filteredIndices;
+		delete infiniteDatasource.lastFilterText;
+		delete infiniteDatasource.lastShowUnknown;
+	}
+	
 	grid.setGridOption('datasource', infiniteDatasource);
 	updateRowCount();
 }
@@ -484,9 +512,26 @@ function setLogStatus(enabled)
 
 function updateRowCount()
 {
-	const count = all_log_lines.length;
-	const formattedCount = count.toLocaleString();
-	rowCount.textContent = `${formattedCount} rows`;
+	const totalCount = all_log_lines.length;
+	
+	// Get filtered count if available
+	let filteredCount = totalCount;
+	if (infiniteDatasource.filteredIndices)
+	{
+		filteredCount = infiniteDatasource.filteredIndices.length;
+	}
+	
+	const formattedCount = filteredCount.toLocaleString();
+	const totalFormatted = totalCount.toLocaleString();
+	
+	if (filteredCount === totalCount)
+	{
+		rowCount.textContent = `${formattedCount} rows`;
+	}
+	else
+	{
+		rowCount.textContent = `${formattedCount} of ${totalFormatted} rows`;
+	}
 }
 
 function triggerDbcLoad()
