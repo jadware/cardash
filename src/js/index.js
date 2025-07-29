@@ -105,6 +105,7 @@ function createTable()
 		rowHeight: 20,
 		onSelectionChanged,
 		onCellValueChanged,
+		onCellKeyDown,
 	};
 
 	// Create Grid: Create new grid within the #myGrid div, using the Grid Options object
@@ -327,6 +328,50 @@ function onSelectionChanged(event)
 	selectRecord(row);
 }
 
+function onCellKeyDown(event)
+{
+	const api = event.api;
+	const key = event.event.key;
+	const current = event.node;
+
+	if (!current)
+		return;
+
+	let targetIndex = current.rowIndex;
+
+	// Get page size based on actual viewport height
+	switch (key)
+	{
+		case 'ArrowDown':
+			targetIndex += 1;
+			break;
+
+		case 'ArrowUp':
+			targetIndex -= 1;
+			break;
+
+		case 'PageDown':
+			//TODO
+			break;
+
+		case 'PageUp':
+			//TODO
+			break;
+
+		default:
+			return;
+	}
+
+	const targetNode = api.getDisplayedRowAtIndex(targetIndex);
+	if (targetNode)
+	{
+		api.forEachNode(node => node.setSelected(false));
+		targetNode.setSelected(true);
+		api.ensureIndexVisible(targetIndex, 'middle');
+	}
+}
+	
+
 function onCellValueChanged(event)
 {
 	switch (event.column.colId)
@@ -488,13 +533,10 @@ function selectRecord(row)
 {
 	if (!row)
 	{
-		console.log('selection cleared');
 		fillTimeline(timeline, null);
 		return;
 	}
 
-	console.log('select record', row);
-	
 	fillTimeline(timeline, row.id, true);
 }
 
