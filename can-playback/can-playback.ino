@@ -19,8 +19,9 @@ void setup()
 	delay(500); // startup pulse
 	digitalWrite(LED_PIN, LOW);
 
-	Serial.begin(115200);
-	while (!Serial);
+	Serial.begin(961200);
+	while (!Serial)
+		delay(10);
 
 	if (CAN.begin(MCP_ANY, CAN_500KBPS, MCP_8MHZ) != CAN_OK)
 	{
@@ -40,7 +41,18 @@ void loop()
 		ledOn = false;
 	}
 
-	const char* line = candump_log[currentIndex];
+	if (Serial.available())
+	{
+		String line = Serial.readStringUntil('\n');
+		line.trim();
+		if (line.length() > 0)
+		{
+			float ts = parseAndSend(line.c_str());
+			float delta = ts - lastTs;
+			lastTs = ts;
+			delay((int)(delta * 1000.0f * playbackSpeed));
+		}
+	}
 	
 	if (!line)
 	{
@@ -106,10 +118,3 @@ float parseAndSend(const char* line)
 
 	return ts;
 }
-
-const char* candump_log[] = {
-	"(0.000001) can0   123   [2] 11 22",
-	"(0.010000) can0   321   [3] AA BB CC",
-	"(0.030000) can0   456   [8] 01 02 03 04 05 06 07 08",
-	nullptr
-};
