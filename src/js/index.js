@@ -22,6 +22,9 @@ const logClear = document.getElementById('log-clear');
 const showUnknown = document.getElementById('toggle-unknown');
 const timeline = document.getElementById('timeline');
 const rowCount = document.getElementById('row-count');
+const timeMinSlider = document.getElementById('time-min');
+const timeMaxSlider = document.getElementById('time-max');
+const timeRangeDisplay = document.getElementById('time-range-display');
 
 // Debounce mechanism for text filtering
 let filterDebounceTimer = null;
@@ -47,6 +50,11 @@ let time_max = 0;
 
 let id_selected = null;
 
+// Time range filter
+let timeFilterMin = 0;
+let timeFilterMax = 0;
+
+
 
 window.addEventListener('DOMContentLoaded', async () =>
 {
@@ -62,6 +70,9 @@ window.addEventListener('DOMContentLoaded', async () =>
 
 	toggleUnknown.onchange = onToggleUnknown;
 	textFilter.oninput = onTextFilterInput;
+	
+	timeMinSlider.oninput = onTimeRangeChange;
+	timeMaxSlider.oninput = onTimeRangeChange;
 	
 	dbcLoad.onclick = triggerDbcLoad;
 	dbcFile.onchange = onDbcFileChange;
@@ -159,6 +170,11 @@ function restoreFilters()
 	allowed_transmitters.clear();
 	dataEnabledTransmitters.forEach(tx => allowed_transmitters.add(tx));
 
+	// Load saved selected ID from localStorage
+	const savedSelectedId = localStorage.getItem('can_id_selected');
+	if (savedSelectedId)
+		id_selected = savedSelectedId;
+
 	populateTransmitterList();
 }
 
@@ -173,11 +189,13 @@ const infiniteDatasource =
 		const showUnknownChecked = showUnknown.checked;
 
 		// Pre-calculate filtered row indices (only do this once per filter change)
-		if (!this.filteredIndices || this.lastFilterText !== filterText || this.lastShowUnknown !== showUnknownChecked)
+		if (!this.filteredIndices || this.lastFilterText !== filterText || this.lastShowUnknown !== showUnknownChecked || this.lastTimeMin !== timeFilterMin || this.lastTimeMax !== timeFilterMax)
 		{
 			this.filteredIndices = [];
 			this.lastFilterText = filterText;
 			this.lastShowUnknown = showUnknownChecked;
+			this.lastTimeMin = timeFilterMin;
+			this.lastTimeMax = timeFilterMax;
 
 			for (let i = 0; i < all_log_lines.length; i++)
 			{
@@ -188,6 +206,10 @@ const infiniteDatasource =
 
 				// Apply "Show Unknown" filter
 				if (!showUnknownChecked && !payload.msg)
+					continue;
+
+				// Apply time range filter
+				if (payload.time < timeFilterMin || payload.time > timeFilterMax)
 					continue;
 
 				// Apply text filter
@@ -392,6 +414,8 @@ function invalidateGrid()
 		delete infiniteDatasource.filteredIndices;
 		delete infiniteDatasource.lastFilterText;
 		delete infiniteDatasource.lastShowUnknown;
+		delete infiniteDatasource.lastTimeMin;
+		delete infiniteDatasource.lastTimeMax;
 	}
 	
 	grid.setGridOption('datasource', infiniteDatasource);
@@ -413,6 +437,20 @@ async function clearCandump()
 	decoded_lines.length = 0;
 	history_by_id = {};
 	
+	// Reset time range
+	time_min = 0;
+	time_max = 0;
+	timeFilterMin = 0;
+	timeFilterMax = 0;
+	
+	// Reset timeline viewBox
+	timeline.setAttribute('viewBox', '0 0 10 10');
+	
+	// Reset time range sliders
+	timeMinSlider.value = 0;
+	timeMaxSlider.value = 100;
+	timeRangeDisplay.textContent = '0.000 - 0.000';
+	
 	invalidateGrid();
 }
 
@@ -427,32 +465,56 @@ async function onTextFilterInput(e)
 {
 	localStorage.setItem('textFilter', e.target.value);
 
-	const now = Date.now();
-	const timeSinceLastFilter = now - lastFilterTime;
-
 	// Clear existing timer
 	if (filterDebounceTimer)
 	{
 		clearTimeout(filterDebounceTimer);
 	}
 
-	// If enough time has passed since last filter, trigger immediately
-	if (timeSinceLastFilter >= FILTER_DEBOUNCE_DELAY)
+	// Set new timer for debounced filtering
+	filterDebounceTimer = setTimeout(() =>
 	{
-		lastFilterTime = now;
 		invalidateGrid();
-	}
-	else
-	{
-		// Set timer to trigger after the minimum delay
-		const remainingDelay = FILTER_DEBOUNCE_DELAY - timeSinceLastFilter;
-		filterDebounceTimer = setTimeout(() =>
-		{
-			lastFilterTime = Date.now();
-			invalidateGrid();
-		}, remainingDelay);
-	}
+	}, FILTER_DEBOUNCE_DELAY);
 };
+
+async function onTimeRangeChange(e)
+{
+	const minPercent = parseInt(timeMinSlider.value);
+	const maxPercent = parseInt(timeMaxSlider.value);
+	
+	// Ensure min doesn't exceed max
+	if (minPercent > maxPercent)
+	{
+		if (e.target === timeMinSlider)
+		{
+			timeMaxSlider.value = minPercent;
+		}
+		else
+		{
+			timeMinSlider.value = maxPercent;
+		}
+	}
+	
+	// Convert percentages to actual timestamps
+	const timeRange = time_max - time_min;
+	timeFilterMin = time_min + (minPercent / 100) * timeRange;
+	timeFilterMax = time_min + (maxPercent / 100) * timeRange;
+	
+	// Update display
+	timeRangeDisplay.textContent = `${timeFilterMin.toFixed(3)} - ${timeFilterMax.toFixed(3)}`;
+	
+	// Save to localStorage
+	localStorage.setItem('timeFilterMin', timeFilterMin.toString());
+	localStorage.setItem('timeFilterMax', timeFilterMax.toString());
+	
+	// Apply filter
+	invalidateGrid();
+	
+	// Redraw timeline if there's a selected ID
+	if (id_selected)
+		fillTimeline(timeline, id_selected, true);
+}
 
 async function onLogFileChange(e)
 {
@@ -520,6 +582,13 @@ function processLog(text)
 	time_min = decoded_lines[0].time;
 	time_max = decoded_lines[num_lines - 1].time;
 
+	// Initialize time range sliders
+	initializeTimeRangeSliders();
+
+	// Restore timeline for saved selected ID
+	if (id_selected)
+		fillTimeline(timeline, id_selected, true);
+
 	setLogStatus(true);
 	updateRowCount();
 }
@@ -533,10 +602,11 @@ function selectRecord(row)
 {
 	if (!row)
 	{
-		fillTimeline(timeline, null);
 		return;
 	}
 
+	id_selected = row.id;
+	localStorage.setItem('can_id_selected', row.id);
 	fillTimeline(timeline, row.id, true);
 }
 
@@ -555,9 +625,9 @@ function fillTimeline(timeline, id, force)
 	if (events.length === 0)
 		return;
 
-	// Get timeline time bounds
-	const min = decoded_lines[0]?.time || 0;
-	const max = decoded_lines[decoded_lines.length - 1]?.time || 1;
+	// Get timeline time bounds - use filtered range instead of full range
+	const min = timeFilterMin;
+	const max = timeFilterMax;
 	const timeRange = max - min || 1;
 
 	// Set canvas drawing properties
@@ -566,12 +636,16 @@ function fillTimeline(timeline, id, force)
 
 	for (const ev of events)
 	{
-		const normX = ((ev.time - min) / timeRange) * timeline.width;
+		// Only draw events within the filtered time range
+		if (ev.time >= min && ev.time <= max)
+		{
+			const normX = ((ev.time - min) / timeRange) * timeline.width;
 
-		ctx.beginPath();
-		ctx.moveTo(normX, 0);
-		ctx.lineTo(normX, timeline.height);
-		ctx.stroke();
+			ctx.beginPath();
+			ctx.moveTo(normX, 0);
+			ctx.lineTo(normX, timeline.height);
+			ctx.stroke();
+		}
 	}
 }
 
@@ -812,4 +886,33 @@ function resizeCanvas()
 	// Redraw timeline if there's a selected ID
 	if (id_selected)
 		fillTimeline(timeline, id_selected, true);
+}
+
+function initializeTimeRangeSliders()
+{
+	// Load saved time range from localStorage
+	const savedMin = localStorage.getItem('timeFilterMin');
+	const savedMax = localStorage.getItem('timeFilterMax');
+	
+	if (savedMin && savedMax)
+	{
+		timeFilterMin = parseFloat(savedMin);
+		timeFilterMax = parseFloat(savedMax);
+	}
+	else
+	{
+		// Default to full range
+		timeFilterMin = time_min;
+		timeFilterMax = time_max;
+	}
+	
+	const timeRange = time_max - time_min;
+	const minPercent = ((timeFilterMin - time_min) / timeRange) * 100;
+	const maxPercent = ((timeFilterMax - time_min) / timeRange) * 100;
+	
+	timeMinSlider.value = minPercent;
+	timeMaxSlider.value = maxPercent;
+	
+	// Update display
+	timeRangeDisplay.textContent = `${timeFilterMin.toFixed(3)} - ${timeFilterMax.toFixed(3)}`;
 }
