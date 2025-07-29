@@ -28,6 +28,11 @@ let filterDebounceTimer = null;
 let lastFilterTime = 0;
 const FILTER_DEBOUNCE_DELAY = 500; // 500ms = 2 times per second max
 
+// Debounce mechanism for window resize
+let resizeDebounceTimer = null;
+let lastResizeTime = 0;
+const RESIZE_DEBOUNCE_DELAY = 333; // 333ms = 3 times per second max
+
 let all_log_lines = [];
 const decoded_lines = [];
 
@@ -36,6 +41,11 @@ let dbc = null;
 let grid = null;
 const allowed_transmitters = new Set();
 let history_by_id = {};
+
+let time_min = 0;
+let time_max = 0;
+
+let id_selected = null;
 
 
 window.addEventListener('DOMContentLoaded', async () =>
@@ -46,6 +56,9 @@ window.addEventListener('DOMContentLoaded', async () =>
 
 	// Add drag and drop handlers
 	setupDragAndDrop();
+	
+	// Setup canvas sizing
+	setupCanvasSizing();
 
 	toggleUnknown.onchange = onToggleUnknown;
 	textFilter.oninput = onTextFilterInput;
@@ -355,9 +368,6 @@ async function clearCandump()
 	decoded_lines.length = 0;
 	history_by_id = {};
 	
-	// Reset timeline viewBox
-	timeline.setAttribute('viewBox', '0 0 10 10');
-	
 	invalidateGrid();
 }
 
@@ -462,10 +472,8 @@ function processLog(text)
 	}
 
 	// Track time range
-	const min = decoded_lines[0].time;
-	const max = decoded_lines[num_lines - 1].time;
-
-	timeline.setAttribute('viewBox', `${min} 0 ${max - min} 10`);
+	time_min = decoded_lines[0].time;
+	time_max = decoded_lines[num_lines - 1].time;
 
 	setLogStatus(true);
 	updateRowCount();
@@ -487,45 +495,41 @@ function selectRecord(row)
 
 	console.log('select record', row);
 	
-	fillTimeline(timeline, row.id);
+	fillTimeline(timeline, row.id, true);
 }
 
-function fillTimeline(timeline, id)
+function fillTimeline(timeline, id, force)
 {
-	//check if the can id is the same as the one we are trying to fill
-	if (timeline.can_id === id)
+	if (id_selected === id && !force)
 		return;
 
-	//store the can id
-	timeline.can_id = id;
+	id_selected = id;
 
-	//clear all markers
-	timeline.innerHTML = '';
-	
-	//fill with markers from the lookup
+	const ctx = timeline.getContext('2d');
+	ctx.clearRect(0, 0, timeline.width, timeline.height);
+
 	const events = getHistoryById(id) || [];
 
-	for (let i = 0; i < events.length; i++)
+	if (events.length === 0)
+		return;
+
+	// Get timeline time bounds
+	const min = decoded_lines[0]?.time || 0;
+	const max = decoded_lines[decoded_lines.length - 1]?.time || 1;
+	const timeRange = max - min || 1;
+
+	// Set canvas drawing properties
+	ctx.strokeStyle = 'rgba(64, 128, 128, 0.5)';
+	ctx.lineWidth = 1;
+
+	for (const ev of events)
 	{
-		const ev = events[i];
+		const normX = ((ev.time - min) / timeRange) * timeline.width;
 
-		const x = ev.time;
-
-		const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-		line.setAttribute('x1', x);
-		line.setAttribute('x2', x);
-		line.setAttribute('y1', '0');
-		line.setAttribute('y2', '10');
-		line.setAttribute('class', 'timeline-marker');
-
-		// Optional: attach event data
-		line.dataset.index = i;
-		line.dataset.timestamp = ev.time;
-
-		// Optional: click handler
-		line.onclick = () => console.log(`Clicked marker ${i}`, ev);
-
-		timeline.appendChild(line);
+		ctx.beginPath();
+		ctx.moveTo(normX, 0);
+		ctx.lineTo(normX, timeline.height);
+		ctx.stroke();
 	}
 }
 
@@ -545,21 +549,36 @@ function updateRowCount()
 	
 	// Get filtered count if available
 	let filteredCount = totalCount;
+	let isFiltered = false;
+	
 	if (infiniteDatasource.filteredIndices)
 	{
 		filteredCount = infiniteDatasource.filteredIndices.length;
+		isFiltered = filteredCount !== totalCount;
+	}
+	
+	// Check if any filters are active
+	const hasTextFilter = textFilter.value.trim() !== '';
+	const hasUnknownFilter = !showUnknown.checked;
+	
+	if (hasTextFilter || hasUnknownFilter)
+	{
+		isFiltered = true;
 	}
 	
 	const formattedCount = filteredCount.toLocaleString();
 	const totalFormatted = totalCount.toLocaleString();
 	
-	if (filteredCount === totalCount)
+	// Update row count display
+	if (filteredCount === totalCount && !isFiltered)
 	{
 		rowCount.textContent = `${formattedCount} rows`;
+		rowCount.className = 'badge bg-secondary';
 	}
 	else
 	{
 		rowCount.textContent = `${formattedCount} of ${totalFormatted} rows`;
+		rowCount.className = 'badge bg-primary';
 	}
 }
 
@@ -697,4 +716,58 @@ async function handleDrop(e)
 			console.log('Unsupported file type:', file.name);
 		}
 	}
+}
+
+function setupCanvasSizing()
+{
+	// Set initial canvas size
+	resizeCanvas();
+	
+	// Add window resize listener with debouncing
+	window.addEventListener('resize', debouncedResize);
+}
+
+function debouncedResize()
+{
+	const now = Date.now();
+	const timeSinceLastResize = now - lastResizeTime;
+
+	// If enough time has passed since last resize, trigger immediately
+	if (timeSinceLastResize >= RESIZE_DEBOUNCE_DELAY)
+	{
+		lastResizeTime = now;
+		resizeCanvas();
+	}
+	else
+	{
+		// Clear existing timer
+		if (resizeDebounceTimer)
+		{
+			clearTimeout(resizeDebounceTimer);
+		}
+
+		// Set timer to trigger after the minimum delay
+		const remainingDelay = RESIZE_DEBOUNCE_DELAY - timeSinceLastResize;
+		resizeDebounceTimer = setTimeout(() =>
+		{
+			lastResizeTime = Date.now();
+			resizeCanvas();
+		}, remainingDelay);
+	}
+}
+
+function resizeCanvas()
+{
+	const container = timeline.parentElement;
+	const containerWidth = container.clientWidth;
+	
+	// Set canvas size to match container
+	timeline.width = containerWidth;
+	
+	// Set CSS size to match
+	timeline.style.width = containerWidth + 'px';
+	
+	// Redraw timeline if there's a selected ID
+	if (id_selected)
+		fillTimeline(timeline, id_selected, true);
 }
