@@ -64,3 +64,12 @@ A browser-based tool for visualizing and decoding candump-format CAN bus logs us
 - DBC explorer / analyzer to follow one id over time in a graph or timeline of some kind
 - ability to playback to a serial port, with control, for reverse engineering 3rd party devices
 - synchronize to car's dashcams
+- live recording mode that uses serial port
+- live message tester
+
+## TODO
+- timeline view using SVG
+- selectable in/out for time windows to isolate things
+- read the systemutc to re-create real timestamps
+- click to rename and store list of edits for identifying pids and taking notes on them
+- undo/redo? with onscreen growl

@@ -105,9 +105,9 @@ export class DBC
 
 	getMessageById(id)
 	{
-		return this.messages.get(id);
+		return this.messages.get(id) || null;
 	}
-
+	
 	getTransmitters()
 	{
 		return Array.from(this.transmitters);

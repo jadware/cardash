@@ -24,11 +24,17 @@
 							<label class="btn btn-outline-secondary" for="type-warning">Warn</label>
 -->
 						</div>
+						<div class="ms-2 d-flex align-items-center">
+							<span class="badge bg-secondary" id="row-count">0 rows</span>
+						</div>
 					</div>
 
 					<div class="filter-group ms-auto d-flex align-items-center gap-2">
 						<div class="btn-group btn-group-sm" role="group" aria-label="DBC Load/Clear">
-							<button class="btn btn-outline-primary" id="dbc-load">DBC</button>
+							<button class="btn btn-outline-primary" id="dbc-load">
+								<i class="bi bi-list-ul"></i> DBC
+							</button>
+							
 							<button class="btn btn-outline-primary" id="dbc-clear" title="Clear DBC">
 								<i class="bi bi-x-circle"></i>
 							</button>
@@ -36,7 +42,10 @@
 						<input type="file" id="dbc-file" accept=".dbc" style="display: none;">
 
 						<div class="btn-group btn-group-sm" role="group" aria-label="LOG Load/Clear">
-							<button class="btn btn-outline-primary" id="log-load">LOG</button>
+							<button class="btn btn-outline-primary" id="log-load">
+								<i class="bi bi-list-columns-reverse"></i> Candump
+							</button>
+							
 							<button class="btn btn-outline-primary" id="log-clear" title="Clear Log">
 								<i class="bi bi-x-circle"></i>
 							</button>
@@ -88,6 +97,11 @@
 						<div id="id-count-buttons" class="d-flex flex-wrap gap-1 small"></div>
 					</div>
 				</div>
+			</div>
+			
+			<div class="logs-footer d-flex align-items-center justify-content-between">
+				<svg id="timeline" viewBox="0 0 1000 10" preserveAspectRatio="none">
+				</svg>
 			</div>
 		</div>
 

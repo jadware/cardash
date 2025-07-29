@@ -20,15 +20,17 @@ const logFile = document.getElementById('log-file');
 const logClear = document.getElementById('log-clear');
 
 const showUnknown = document.getElementById('toggle-unknown');
+const timeline = document.getElementById('timeline');
+const rowCount = document.getElementById('row-count');
 
 let all_log_lines = [];
 const decoded_lines = [];
-const logs_by_id = new Map(); // key: id (number), value: array of decoded entries
 
 let disabled_ids = new Set();
 let dbc = null;
 let grid = null;
 const allowed_transmitters = new Set();
+let history_by_id = {};
 
 
 window.addEventListener('DOMContentLoaded', async () =>
@@ -62,7 +64,7 @@ function createTable()
 		[
 			{ field: 't', headerName: 'Time', width: 90 },
 			{ field: 'id', headerName: 'ID', width: 60 },
-			{ field: 'msg', headerName: 'Msg', width: 220 },
+			{ field: 'msg', headerName: 'Msg', width: 220, editable: true },
 			//{ field: 'length', headerName: 'Len', width: 60 },
 			{ field: 'decoded', headerName: 'Data', flex: 1, cellRenderer: decodedCellRenderer },
 		],
@@ -84,6 +86,7 @@ function createTable()
 		},
 		rowHeight: 20,
 		onSelectionChanged,
+		onCellValueChanged,
 	};
 
 	// Create Grid: Create new grid within the #myGrid div, using the Grid Options object
@@ -108,8 +111,13 @@ async function restoreData()
 	const logText = await loadByKey('log');
 	if (logText)
 	{
+		//measure how long this will take
+		console.log('processing log...');
+		const start = performance.now();
 		processLog(logText);
-		console.log(`restored log with ${all_log_lines.length} rows`);
+		const end = performance.now();
+		const duration = (end - start) / 1000;
+		console.log(`restored log with ${all_log_lines.length} rows in ${duration.toFixed(1)}s`);
 
 		invalidated = true;
 	}
@@ -281,9 +289,22 @@ function onSelectionChanged(event)
 	selectRecord(row);
 }
 
+function onCellValueChanged(event)
+{
+	switch (event.column.colId)
+	{
+		case 'msg':
+			const id = event.data.id;
+			const val = event.value;
+			console.log(`TODO: change column for id ${id} to: ${val}`);
+			break;
+	}
+}
+
 function invalidateGrid()
 {
 	grid.setGridOption('datasource', infiniteDatasource);
+	updateRowCount();
 }
 
 async function clearDbc()
@@ -297,10 +318,14 @@ async function clearDbc()
 
 async function clearCandump()
 {
-	await saveByKey('log', '');
+	all_log_lines = [];
+	decoded_lines.length = 0;
+	history_by_id = {};
+	
+	// Reset timeline viewBox
+	timeline.setAttribute('viewBox', '0 0 10 10');
+	
 	invalidateGrid();
-
-	console.log('cleared candump');
 }
 
 async function onToggleUnknown(e)
@@ -324,9 +349,10 @@ async function onLogFileChange(e)
 	if (!file)
 		return;
 
+	console.log('loading log from file', file.name);
 	const text = await file.text();
 	processLog(text);
-	console.log('loaded log from file');
+	console.log('loaded log from file', file.name);
 
 	invalidateGrid();
 
@@ -351,16 +377,46 @@ async function onDbcFileChange(e)
 
 function processLog(text)
 {
+	history_by_id = {};
+
 	all_log_lines = text.split('\n');
-	decoded_lines.length = all_log_lines.length;
+
+	const num_lines = all_log_lines.length;
+
+	decoded_lines.length = num_lines;
+
+	if (num_lines === 0)
+		return;
 
 	//pre-preocess all the lines
 	//TODO: do this in the background after initial loaading?
-	for (let i = 0; i < all_log_lines.length; i++)
-		decoded_lines[i] = decodeCandumpLine(all_log_lines[i]);
+	for (let i = 0; i < num_lines; i++)
+	{
+		const line = decodeCandumpLine(all_log_lines[i]);
+
+		decoded_lines[i] = line;
+
+		const id = line.idHex;
+
+		if (history_by_id[id])
+			history_by_id[id].push(line);
+		else
+			history_by_id[id] = [line];
+	}
+
+	// Track time range
+	const min = decoded_lines[0].time;
+	const max = decoded_lines[num_lines - 1].time;
+
+	timeline.setAttribute('viewBox', `${min} 0 ${max - min} 10`);
 
 	setLogStatus(true);
-	
+	updateRowCount();
+}
+
+function getHistoryById(id)
+{
+	return history_by_id[id] || [];
 }
 
 function selectRecord(row)
@@ -368,10 +424,52 @@ function selectRecord(row)
 	if (!row)
 	{
 		console.log('selection cleared');
+		fillTimeline(timeline, null);
 		return;
 	}
 
-	console.log('select record', row.decoded);
+	console.log('select record', row);
+	
+	fillTimeline(timeline, row.id);
+}
+
+function fillTimeline(timeline, id)
+{
+	//check if the can id is the same as the one we are trying to fill
+	if (timeline.can_id === id)
+		return;
+
+	//store the can id
+	timeline.can_id = id;
+
+	//clear all markers
+	timeline.innerHTML = '';
+	
+	//fill with markers from the lookup
+	const events = getHistoryById(id) || [];
+
+	for (let i = 0; i < events.length; i++)
+	{
+		const ev = events[i];
+
+		const x = ev.time;
+
+		const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+		line.setAttribute('x1', x);
+		line.setAttribute('x2', x);
+		line.setAttribute('y1', '0');
+		line.setAttribute('y2', '10');
+		line.setAttribute('class', 'timeline-marker');
+
+		// Optional: attach event data
+		line.dataset.index = i;
+		line.dataset.timestamp = ev.time;
+
+		// Optional: click handler
+		line.onclick = () => console.log(`Clicked marker ${i}`, ev);
+
+		timeline.appendChild(line);
+	}
 }
 
 function setDbcStatus(enabled)
@@ -382,6 +480,13 @@ function setDbcStatus(enabled)
 function setLogStatus(enabled)
 {
 	//TODO
+}
+
+function updateRowCount()
+{
+	const count = all_log_lines.length;
+	const formattedCount = count.toLocaleString();
+	rowCount.textContent = `${formattedCount} rows`;
 }
 
 function triggerDbcLoad()
@@ -404,7 +509,7 @@ function populateTransmitterList()
 	const container = document.getElementById('transmitter-list');
 	container.innerHTML = '';
 
-	const all = dbc.getTransmitters();
+	const all = dbc?.getTransmitters() || [];
 	let enabled = new Set(allowed_transmitters);
 
 	if (enabled.size === 0)
