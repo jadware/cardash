@@ -86,7 +86,7 @@ float parseAndSend(const char* line)
 		String byteStr = l.substring(dataStart + i * 3, dataStart + i * 3 + 2);
 		data[i] = strtoul(byteStr.c_str(), NULL, 16);
 	}
-d:\cardash\can-serial\capture-candump.ino
+	
 	if (CAN.sendMsgBuf(id, 0, len, data) == CAN_OK)
 	{
 		Serial.print("Sent 0x"); Serial.print(id, HEX); Serial.print(" [");
