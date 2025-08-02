@@ -15,11 +15,11 @@
 	"dependencies": {
 		"ag-grid-community": "^34.0.2",
 		"bootstrap": "^5.3.3",
-		"bootstrap-icons": "^1.11.1",
-		"vite": "^7.0.4"
+		"bootstrap-icons": "^1.11.1"
 	},
 	"devDependencies": {
 		"sass": "^1.89.2",
+		"vite": "^7.0.4",
 		"vite-plugin-singlefile": "^2.3.0"
 	}
 }
