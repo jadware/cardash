@@ -22,14 +22,14 @@ export function saveTextAndDownload(text, filename)
  */
 export function downloadBlob(filename, blob)
 {
-        const link = URL.createObjectURL(blob);
+	const link = URL.createObjectURL(blob);
 
-        var a = document.createElement("a");
-        a.setAttribute("download", filename);
-        a.setAttribute("href", link);
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+	var a = document.createElement("a");
+	a.setAttribute("download", filename);
+	a.setAttribute("href", link);
+	document.body.appendChild(a);
+	a.click();
+	document.body.removeChild(a);
 }
 
 
@@ -42,18 +42,18 @@ export function downloadBlob(filename, blob)
  */
 export async function downloadFile(dir, filename)
 {
-        //load records
-        const response = await get(`/${dir}/${filename}`);
+	//load records
+	const response = await get(`/${dir}/${filename}`);
 
-        //don't download if invalid
-        if (response.status != 200)
-                return false;
+	//don't download if invalid
+	if (response.status != 200)
+		return false;
 
-        //pull the blob
-        const blob = await response.blob();
+	//pull the blob
+	const blob = await response.blob();
 
-        //save to downloads
-        downloadBlob(filename, blob);
+	//save to downloads
+	downloadBlob(filename, blob);
 
-        return true;
+	return true;
 }
