@@ -1,16 +1,22 @@
+// Capture CAN bus messages and emit them over the serial port
+// in the `candump` text format.
+//
+// The sketch uses the Adafruit MCP2515 CAN controller library and
+// blinks the built‑in LED whenever a frame is received.
+
 #include <Adafruit_MCP2515.h>
 
-#define CS_PIN PIN_CAN_CS
-#define CAN_BAUDRATE 500000
+#define CS_PIN PIN_CAN_CS            // Chip select for the MCP2515
+#define CAN_BAUDRATE 500000           // CAN bus speed
 
 Adafruit_MCP2515 mcp(CS_PIN);
 
-const int LED_BLINK_INTERVAL = 50; // min gap between blinks
-const int LED_ON_DURATION = 5;     // how long to keep LED on
-const int LED_PIN = LED_BUILTIN; // or e.g. 13
-unsigned long ledOffTime = 0;
-unsigned long lastBlink = 0;
-bool ledOn = false;
+const int LED_BLINK_INTERVAL = 50; // Minimum gap between LED blinks
+const int LED_ON_DURATION = 5;     // Duration to keep LED on for each blink
+const int LED_PIN = LED_BUILTIN;   // On‑board status LED pin
+unsigned long ledOffTime = 0;      // Time when LED should turn off
+unsigned long lastBlink = 0;       // Timestamp of last blink
+bool ledOn = false;                // Tracks LED state
 
 
 void setup()
@@ -67,9 +73,11 @@ void loop()
 	}
 }
 
+// Format a received CAN frame using the `candump` syntax
+// (e.g. "(0.123456) can 123#DEADBEEF") and send it over Serial.
 void logCandump(float ts, unsigned long id, bool extended, bool rtr, uint8_t len)
 {
-	Serial.printf("(%.6f) c ", ts);
+        Serial.printf("(%.6f) c ", ts);
 
 	if (extended)
 	{
