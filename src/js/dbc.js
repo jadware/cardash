@@ -1,23 +1,23 @@
 export class DBC
 {
-        constructor()
-        {
-                this.messages = new Map(); // id → { id, name, dlc, signals[] }
-                this.transmitters = new Set(); // node names
-                this.signalComments = new Map(); // key: "msgId.signalName" → comment
-                this.valueTables = new Map(); // key: "msgId.signalName" → { value: label }
-        }
+	constructor()
+	{
+		this.messages = new Map(); // id → { id, name, dlc, signals[] }
+		this.transmitters = new Set(); // node names
+		this.signalComments = new Map(); // key: "msgId.signalName" → comment
+		this.valueTables = new Map(); // key: "msgId.signalName" → { value: label }
+	}
 
-        /**
-         * Parse DBC file contents and return a populated {@link DBC} instance.
-         *
-         * @param {string} text - Raw text from a DBC file.
-         * @returns {DBC} Parsed DBC object.
-         */
-        static parse(text)
-        {
-                const dbc = new DBC();
-                const lines = text.split('\n');
+	/**
+	 * Parse DBC file contents and return a populated {@link DBC} instance.
+	 *
+	 * @param {string} text - Raw text from a DBC file.
+	 * @returns {DBC} Parsed DBC object.
+	 */
+	static parse(text)
+	{
+		const dbc = new DBC();
+		const lines = text.split('\n');
 
 		let currentMsg = null;
 
@@ -109,40 +109,40 @@ export class DBC
 		return dbc;
 	}
 
-        /**
-         * Retrieve a message definition by its CAN identifier.
-         *
-         * @param {number} id - Numeric CAN message identifier.
-         * @returns {?Object} Message definition or null if not found.
-         */
-        getMessageById(id)
-        {
-                return this.messages.get(id) || null;
-        }
+	/**
+	 * Retrieve a message definition by its CAN identifier.
+	 *
+	 * @param {number} id - Numeric CAN message identifier.
+	 * @returns {?Object} Message definition or null if not found.
+	 */
+	getMessageById(id)
+	{
+		return this.messages.get(id) || null;
+	}
 
-        /**
-         * Get the list of transmitters defined in the DBC file.
-         *
-         * @returns {string[]} Array of transmitter node names.
-         */
-        getTransmitters()
-        {
-                return Array.from(this.transmitters);
-        }
+	/**
+	 * Get the list of transmitters defined in the DBC file.
+	 *
+	 * @returns {string[]} Array of transmitter node names.
+	 */
+	getTransmitters()
+	{
+		return Array.from(this.transmitters);
+	}
 
-        /**
-         * Decode a CAN frame into signal values using the DBC definitions.
-         *
-         * @param {number} id - CAN message identifier.
-         * @param {number[]} bytes - Data bytes of the frame.
-         * @returns {?Object} Decoded signal values or null if message unknown.
-         */
-        decodeFrame(id, bytes)
-        {
-                const msg = this.messages.get(id);
-                if (!msg || !msg.signals || msg.signals.length === 0)
-                        return null;
-	
+	/**
+	 * Decode a CAN frame into signal values using the DBC definitions.
+	 *
+	 * @param {number} id - CAN message identifier.
+	 * @param {number[]} bytes - Data bytes of the frame.
+	 * @returns {?Object} Decoded signal values or null if message unknown.
+	 */
+	decodeFrame(id, bytes)
+	{
+		const msg = this.messages.get(id);
+			if (!msg || !msg.signals || msg.signals.length === 0)
+				return null;
+
 		const result = {};
 	
 		const muxSig = msg.signals.find(s => s.multiplexerIndicator === 'M');
@@ -228,25 +228,25 @@ export class DBC
  */
 function extractSignalBits(bytes, startBit, length, littleEndian)
 {
-        let value = 0;
+	let value = 0;
 
-        for (let i = 0; i < length; i++)
-        {
-                const bitIndex = littleEndian
-                        ? startBit + i
-                        : startBit + (length - 1 - i);
+	for (let i = 0; i < length; i++)
+	{
+		const bitIndex = littleEndian
+			? startBit + i
+			: startBit + (length - 1 - i);
 
-                const byteIndex = Math.floor(bitIndex / 8);
-                const bitPos = bitIndex % 8;
+		const byteIndex = Math.floor(bitIndex / 8);
+		const bitPos = bitIndex % 8;
 
-                if (byteIndex >= bytes.length)
-                        continue;
+		if (byteIndex >= bytes.length)
+			continue;
 
-                const bit = (bytes[byteIndex] >> bitPos) & 1;
-                value |= bit << i;
-        }
+		const bit = (bytes[byteIndex] >> bitPos) & 1;
+		value |= bit << i;
+	}
 
-        return value >>> 0;
+	return value >>> 0;
 }
 
 /**
@@ -258,6 +258,6 @@ function extractSignalBits(bytes, startBit, length, littleEndian)
  */
 function toSigned(value, bits)
 {
-        const shift = 32 - bits;
-        return (value << shift) >> shift;
+	const shift = 32 - bits;
+	return (value << shift) >> shift;
 }
