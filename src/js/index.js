@@ -84,6 +84,11 @@ window.addEventListener('DOMContentLoaded', async () =>
 });
 
 
+/**
+ * Initialize the ag-Grid table used to display CAN messages.
+ *
+ * @returns {void}
+ */
 function createTable()
 {
 	//setup ag-grid 
@@ -487,6 +492,12 @@ async function onDbcFileChange(e)
 	console.log('loaded dbc from file');
 }
 
+/**
+ * Parse raw candump text and populate decoded message history.
+ *
+ * @param {string} text - Raw candump log contents.
+ * @returns {void}
+ */
 function processLog(text)
 {
 	history_by_id = {};
@@ -706,6 +717,11 @@ function setDisabledIds(set)
 	localStorage.setItem('disabledIds', JSON.stringify([...set]));
 }
 
+/**
+ * Configure drag-and-drop handlers for DBC and log files.
+ *
+ * @returns {void}
+ */
 function setupDragAndDrop()
 {
 	// Prevent default drag behaviors

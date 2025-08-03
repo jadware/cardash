@@ -1,3 +1,10 @@
+/**
+ * Decode a single candump log line into a structured object.
+ *
+ * @param {DBC} dbc - Parsed DBC instance used for decoding frames.
+ * @param {string} rawLine - Raw text line from a candump log.
+ * @returns {Object} Information about the decoded frame.
+ */
 export function decodeCandumpLine(dbc, rawLine)
 {
 	const regex = /^\((\d+\.\d+)\)\s+(\S+)\s+([A-Fa-f0-9]+)#([A-Fa-f0-9]*)$/;
@@ -65,11 +72,18 @@ export function decodeCandumpLine(dbc, rawLine)
 }
 
 //TODO
+/**
+ * Encode a decoded CAN frame back into candump log line format.
+ *
+ * @param {DBC} dbc - Parsed DBC instance used for lookup.
+ * @param {{id: number, bytes: number[], time: number, interface: string}} decoded - Decoded frame data.
+ * @returns {string} candump formatted log line.
+ */
 export function encodeCandumpLine(dbc, decoded)
 {
-	const message = dbc?.getMessageById(decoded.id);
-	const bytes = decoded.bytes;
-	const dataHex = bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
+        const message = dbc?.getMessageById(decoded.id);
+        const bytes = decoded.bytes;
+        const dataHex = bytes.map(b => b.toString(16).padStart(2, '0').toUpperCase()).join('');
 
-	return `(${decoded.time}) ${decoded.interface} ${decoded.id}#${dataHex}`;
+        return `(${decoded.time}) ${decoded.interface} ${decoded.id}#${dataHex}`;
 }
