@@ -77,7 +77,7 @@ void loop()
 // (e.g. "(0.123456) can 123#DEADBEEF") and send it over Serial.
 void logCandump(float ts, unsigned long id, bool extended, bool rtr, uint8_t len)
 {
-        Serial.printf("(%.6f) c ", ts);
+	Serial.printf("(%.6f) c ", ts);
 
 	if (extended)
 	{
