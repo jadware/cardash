@@ -8,6 +8,12 @@ export class DBC
 		this.valueTables = new Map(); // key: "msgId.signalName" → { value: label }
 	}
 
+	/**
+	 * Parse DBC file contents and return a populated {@link DBC} instance.
+	 *
+	 * @param {string} text - Raw text from a DBC file.
+	 * @returns {DBC} Parsed DBC object.
+	 */
 	static parse(text)
 	{
 		const dbc = new DBC();
@@ -103,22 +109,40 @@ export class DBC
 		return dbc;
 	}
 
+	/**
+	 * Retrieve a message definition by its CAN identifier.
+	 *
+	 * @param {number} id - Numeric CAN message identifier.
+	 * @returns {?Object} Message definition or null if not found.
+	 */
 	getMessageById(id)
 	{
 		return this.messages.get(id) || null;
 	}
-	
+
+	/**
+	 * Get the list of transmitters defined in the DBC file.
+	 *
+	 * @returns {string[]} Array of transmitter node names.
+	 */
 	getTransmitters()
 	{
 		return Array.from(this.transmitters);
 	}
-	
+
+	/**
+	 * Decode a CAN frame into signal values using the DBC definitions.
+	 *
+	 * @param {number} id - CAN message identifier.
+	 * @param {number[]} bytes - Data bytes of the frame.
+	 * @returns {?Object} Decoded signal values or null if message unknown.
+	 */
 	decodeFrame(id, bytes)
 	{
 		const msg = this.messages.get(id);
-		if (!msg || !msg.signals || msg.signals.length === 0)
-			return null;
-	
+			if (!msg || !msg.signals || msg.signals.length === 0)
+				return null;
+
 		const result = {};
 	
 		const muxSig = msg.signals.find(s => s.multiplexerIndicator === 'M');
@@ -193,6 +217,15 @@ export class DBC
 	}
 }
 
+/**
+ * Extract an integer value from a byte array given bit offset and length.
+ *
+ * @param {number[]} bytes - Array of CAN data bytes.
+ * @param {number} startBit - Starting bit index.
+ * @param {number} length - Number of bits to extract.
+ * @param {boolean} littleEndian - Whether the signal is little endian.
+ * @returns {number} Unsigned integer value.
+ */
 function extractSignalBits(bytes, startBit, length, littleEndian)
 {
 	let value = 0;
@@ -216,6 +249,13 @@ function extractSignalBits(bytes, startBit, length, littleEndian)
 	return value >>> 0;
 }
 
+/**
+ * Convert an unsigned integer to a signed integer with the given bit width.
+ *
+ * @param {number} value - Unsigned integer value.
+ * @param {number} bits - Bit width of the value.
+ * @returns {number} Signed integer.
+ */
 function toSigned(value, bits)
 {
 	const shift = 32 - bits;
